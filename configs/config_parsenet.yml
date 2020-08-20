@@ -1,0 +1,57 @@
+comment=""
+
+[train]
+model_path = "train_parsenet_{}_lr_{}_trsz_{}_tsz_{}_wght_{}_mode_{}"
+
+# Dataset path
+dataset = ""
+
+# Whether to load a pretrained model or not
+preload_model = False
+
+# pre-trained model path
+pretrain_model_path = ""
+
+# Whether to input the normals or not
+normals = False
+
+proportion = 1.0
+
+# number of training instance
+num_train=24000
+num_val=4000
+num_test=4000
+num_points=1000
+loss_weight=100
+
+num_epochs = 100
+grid_size = 20
+
+# batch size, based on the GPU memory
+batch_size = 8
+
+# Optimization
+optim = adam
+
+# Epsilon for the RL training, not applicable in Supervised training
+accum = 4
+
+# l2 Weight decay
+weight_decay = 0.0
+
+# dropout for Decoder network
+dropout = 0.2
+
+# Learing rate
+lr = 0.01
+
+# Encoder dropout
+encoder_drop = 0.2
+
+# Whether to schedule the learning rate or not
+lr_sch = True
+
+# Number of epochs to wait before decaying the learning rate.
+patience = 8
+
+mode = 0

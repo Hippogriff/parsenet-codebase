@@ -1,0 +1,40 @@
+comment=""
+
+[train]
+model_path = "train_closed_spline_{}_{}_{}_bt_{}_lr_{}_trsz_{}_tsz_{}_wght_{}"
+
+# Dataset path
+dataset = "data/spline/closed_splines.h5"
+
+# path to the pre-trained model
+pretrain_model_path = ""
+
+normals = False
+
+proportion = 1.0
+
+num_train=28000
+num_val=3000
+num_test=3000
+
+num_points=700
+
+loss_weight=0.9
+
+batch_size = 36
+
+num_epochs = 150
+grid_size = 20
+optim = adam
+accum = 4
+
+# Learing rate
+lr = 0.001
+
+# Whether to schedule the learning rate or not
+lr_sch = True
+
+# Number of epochs to wait before decaying the learning rate.
+patience = 8
+
+mode = 1
