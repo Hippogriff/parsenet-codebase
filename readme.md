@@ -1,7 +1,12 @@
 ## ParSeNet: A Parametric Surface Fitting Network for 3D Point Clouds
 *Authors: [Gopal Sharma](https://hippogriff.github.io/), [Difan Liu](https://people.cs.umass.edu/~dliu/), [Evangelos Kalogerakis](https://people.cs.umass.edu/~kalo/), [Subhransu Maji](https://people.cs.umass.edu/~smaji/), [Siddhartha Chaudhuri](https://www.cse.iitb.ac.in/~sidch/), [Radomír Měch](https://research.adobe.com/person/radomir-mech/)*
 
-This repository contains codebase for the [ParSeNet](https://arxiv.org/pdf/2003.12181.pdf) paper published at ECCV-2020.
+This repository contains codebase for the ParSeNet paper published at ECCV-2020.
+
+[Paper](https://arxiv.org/pdf/2003.12181.pdf) | [Project Page](https://hippogriff.github.io/parsenet/)
+
+![](images/parsenet-gallery.jpg )
+
 
 
 ### Installation
@@ -13,6 +18,9 @@ conda env create --force environment.yml -n parsenet
 source activate parsenet
 ```
 
+------
+
+
 
 ### Dataset
 
@@ -22,6 +30,10 @@ To dowload the dataset, run:
 bash download_dataset.sh
 ```
 For data organization, please see `readme_data.md`.
+
+------
+
+
 
 ### Experiments
 
@@ -87,12 +99,21 @@ python test_parsenet.py configs/config_test_parsenet_normals.yml
 python train_parsenet_e2e.py  configs/config_parsenet_e2e.yml
 ```
 
+------
+
+
+
 ### Acknowledgements
+
 1. This project takes inspiration of designing network architecture from the code base provided by Wang et.al.: https://github.com/WangYueFt/dgcnn
 2. We also thank Sebastian for timely release and advice on ABC dataset: https://deep-geometry.github.io/abc-dataset/
-  
+
+------
+
+
 
 ### Citation
+
 ```
 @misc{sharma2020parsenet,
     title={ParSeNet: A Parametric Surface Fitting Network for 3D Point Clouds},
