@@ -1,7 +1,6 @@
-import numpy as np
 import geomdl
+import numpy as np
 from scipy.special import comb
-import time
 
 
 def fit_curve(points, degree, num_ctrls):
@@ -53,7 +52,8 @@ class BSpline:
         points = np.array(points).reshape(1, 3)
         return points
 
-    def basis_functions(self, param, control_points_u, control_points_v, knot_vectors_u, knot_vectors_v, degree_u, degree_v):
+    def basis_functions(self, param, control_points_u, control_points_v, knot_vectors_u, knot_vectors_v, degree_u,
+                        degree_v):
         """
         Returns the basis function in u and v direction to be used to compute the
         renormalization factor for the shifting control point grids.
@@ -81,7 +81,7 @@ class BSpline:
         bspline.knotvector_v = kv.tolist()
         bspline.ctrlpts2d = control_points.tolist()
         return bspline
-    
+
     def evaluate_params(self, params, control_points, knot_vectors_u, knot_vectors_v, degree_u, degree_v):
         control_points_u, control_points_v = control_points.shape[0], control_points.shape[1]
         num_points = params.shape[0]
@@ -129,7 +129,7 @@ class BSpline:
         if (not control_points_v):
             control_points_v = size_v - 1
         uk, vl = self.compute_params_surface(points_, size_u=control_points_u, size_v=control_points_v)
-    
+
         # Set up knot vectors depending on the number of control points
         kv_u = self.compute_knot_vector2(degree_u, size_u, control_points_u, uk)
         kv_v = self.compute_knot_vector2(degree_v, size_v, control_points_v, vl)
@@ -206,9 +206,9 @@ class BSpline:
         """
         # Special case at boundaries
         if (
-            (span == 0 and knot == knot_vector[0])
-            or (span == len(knot_vector) - degree - 2)
-            and knot == knot_vector[len(knot_vector) - 1]
+                (span == 0 and knot == knot_vector[0])
+                or (span == len(knot_vector) - degree - 2)
+                and knot == knot_vector[len(knot_vector) - 1]
         ):
             return 1.0
 
@@ -229,7 +229,7 @@ class BSpline:
             saved = 0.0
             if N[0] != 0.0:
                 saved = ((knot - knot_vector[span]) * N[0]) / (
-                    knot_vector[span + k] - knot_vector[span]
+                        knot_vector[span + k] - knot_vector[span]
                 )
 
             for j in range(0, degree - k + 1):
@@ -281,7 +281,7 @@ class BSpline:
         # Divide individual chord lengths by the total chord length
         uk = np.zeros((num_points))
         for i in range(num_points - 1):
-            uk[i + 1] = np.sum(points_dash[0 : i + 1])
+            uk[i + 1] = np.sum(points_dash[0: i + 1])
         return uk
 
 
@@ -303,7 +303,7 @@ def bernstein_tensor(t, basis):
     n = basis.shape[1] - 1
     T = []
     for i in range(n + 1):
-        T.append((t ** i) * ((1.0 - t) ** (n-i)))
+        T.append((t ** i) * ((1.0 - t) ** (n - i)))
     T = np.concatenate(T, 1)
     basis_tensor = T * basis
     return basis_tensor
@@ -352,7 +352,7 @@ def fit_bezier_surface_fit_kronecker(points, basis_u, basis_v):
     N = basis_u.shape[0]
     n = basis_v.shape[1] - 1
     for i in range(N):
-        A.append(np.matmul(np.transpose(basis_u[i:i+1, :]), basis_v[i:i+1, :]))
+        A.append(np.matmul(np.transpose(basis_u[i:i + 1, :]), basis_v[i:i + 1, :]))
     A = np.stack(A, 0)
     A = np.reshape(A, (N, -1))
 
@@ -409,22 +409,23 @@ def compute_params_curve(points, use_centripetal=False):
     # Divide individual chord lengths by the total chord length
     uk = np.zeros((num_points))
     for i in range(num_points - 1):
-        uk[i + 1] = np.sum(points_dash[0 : i + 1])
+        uk[i + 1] = np.sum(points_dash[0: i + 1])
     return uk
+
 
 def uniform_knot_bspline(control_points_u, control_points_v, degree_u, degree_v, grid_size=30):
     u = v = np.arange(0., 1, 1 / grid_size)
-    
+
     knots_u = [0.0] * degree_u + np.arange(0, 1.01, 1 / (control_points_u - degree_u)).tolist() + [1.0] * degree_u
     knots_v = [0.0] * degree_v + np.arange(0, 1.01, 1 / (control_points_v - degree_v)).tolist() + [1.0] * degree_v
-    
+
     nu = []
     nu = np.zeros((u.shape[0], control_points_u))
     for i in range(u.shape[0]):
         basis = []
         for j in range(0, control_points_u):
             nu[i, j] = basis_function_one(degree_u, knots_u, j, u[i])
-            
+
     nv = np.zeros((v.shape[0], control_points_v))
     for i in range(v.shape[0]):
         for j in range(0, control_points_v):
@@ -449,9 +450,9 @@ def basis_function_one(degree, knot_vector, span, knot):
     """
     # Special case at boundaries
     if (
-        (span == 0 and knot == knot_vector[0])
-        or (span == len(knot_vector) - degree - 2)
-        and knot == knot_vector[len(knot_vector) - 1]
+            (span == 0 and knot == knot_vector[0])
+            or (span == len(knot_vector) - degree - 2)
+            and knot == knot_vector[len(knot_vector) - 1]
     ):
         return 1.0
 
@@ -472,7 +473,7 @@ def basis_function_one(degree, knot_vector, span, knot):
         saved = 0.0
         if N[0] != 0.0:
             saved = ((knot - knot_vector[span]) * N[0]) / (
-                knot_vector[span + k] - knot_vector[span]
+                    knot_vector[span + k] - knot_vector[span]
             )
 
         for j in range(0, degree - k + 1):

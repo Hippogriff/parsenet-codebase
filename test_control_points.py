@@ -1,48 +1,25 @@
-import open3d
-
-import sys
-import logging
-import json
 import os
-from shutil import copyfile
+
 import numpy as np
-import torch.optim as optim
-from src.curve_utils import fit_surface
-from src.utils import visualize_point_cloud
-from src.test_utils import test
-from src.loss import control_points_permute_reg_loss
+import open3d
 import torch.utils.data
+from open3d import *
 from torch.autograd import Variable
-from torch.optim.lr_scheduler import ReduceLROnPlateau
-from src.dataset import DataSetControlPoints
-from src.PointNet import ControlPointPredict
-from src.model import DGCNNControlPoints
-from matplotlib import pyplot as plt
-from src.utils import visualize_uv_maps, visualize_fitted_surface
-from src.utils import chamfer_distance
-from read_config import Config
-from src.utils import fit_surface_sample_points
-from src.dataset import generator_iter
 from torch.utils.data import DataLoader
-from src.utils import chamfer_distance
+
+from read_config import Config
+from src.VisUtils import tessalate_points
+from src.dataset import DataSetControlPoints
+from src.dataset import generator_iter
+from src.loss import control_points_permute_reg_loss
+from src.loss import laplacian_loss
 from src.loss import (
-    basis_function_one,
     uniform_knot_bspline,
     atlasnet_stretching_loss_edge_length,
     spline_reconstruction_loss,
 )
-from src.utils import chamfer_distance
-from src.VisUtils import tessalate_points
-import open3d
-from open3d import *
-import json
-from src.loss import laplacian_loss
-from src.utils import draw_geometries
-from src.fitting_utils import up_sample_points_torch_in_range, sampled_points_from_control_points_
-from src.primitive_forward import optimize_open_spline, optimize_open_spline_kronecker
+from src.model import DGCNNControlPoints
 from src.primitive_forward import optimize_open_spline
-from src.VisUtils import grid_meshes_lists_visulation
-
 
 config = Config("config_controlpoints.yml")
 model_name = config.pretrain_modelpath
@@ -73,7 +50,7 @@ nv = torch.from_numpy(nv.astype(np.float32)).cuda()
 nu_3, nv_3 = uniform_knot_bspline(30, 30, 3, 3, 50)
 nu_3 = torch.from_numpy(nu_3.astype(np.float32)).cuda()
 nv_3 = torch.from_numpy(nv_3.astype(np.float32)).cuda()
-    
+
 config.pretrain_modelpath = "open_splines_k_10_val_1_cd_aug_rand_points_400-2k-mode_0_700_0.9_bt_40_lr_0.001_trsz_32000_tsz_3000_wght_0.9.pth"
 
 # We want to gather the regular grid points for tesellation
@@ -116,7 +93,7 @@ os.makedirs(
 )
 
 for val_b_id in range(config.num_test // config.batch_size - 1):
-    print (val_b_id)
+    print(val_b_id)
     points_, parameters, control_points, scales, RS = next(get_test_data)[0]
     control_points = Variable(
         torch.from_numpy(control_points.astype(np.float32))
@@ -145,10 +122,10 @@ for val_b_id in range(config.num_test // config.batch_size - 1):
             output[b] = output[b] * s.reshape(1, 3) / torch.max(s)
             points[b] = points[b] * s.reshape(3, 1) / torch.max(s)
             control_points[b] = (
-                control_points[b] * s.reshape(1, 1, 3) / torch.max(s)
+                    control_points[b] * s.reshape(1, 1, 3) / torch.max(s)
             )
             reg_points[b] = (
-                reg_points[b] * scales[b].reshape(1, 3) / np.max(scales[b])
+                    reg_points[b] * scales[b].reshape(1, 3) / np.max(scales[b])
             )
 
     # Chamfer Distance loss, between predicted and GT surfaces
@@ -201,7 +178,7 @@ for val_b_id in range(config.num_test // config.batch_size - 1):
         pred_mesh.paint_uniform_color([1, 0, 0])
 
         gt_mesh = tessalate_points(reg_points[b], 20, 20)
-        optim_mesh = tessalate_points(optimized_points[0], 30, 30)                        
+        optim_mesh = tessalate_points(optimized_points[0], 30, 30)
         # draw_geometries([pred_mesh, gt_mesh])
         # grid_meshes_lists_visulation([[gt_mesh, pred_mesh, optim_mesh]], viz=True)
 
@@ -241,7 +218,7 @@ results["test_reg"] = str(np.mean(test_reg))
 results["test_cd"] = str(np.mean(test_cd))
 results["test_stretch"] = str(np.mean(test_str))
 results["test_lap"] = str(np.mean(test_lap))
-print (results)
+print(results)
 print(
     "Test Reg Loss: {}, Test CD Loss: {}, Test Stretch: {}, Test Lap: {}".format(
         np.mean(test_reg), np.mean(test_cd), np.mean(test_str), np.mean(test_lap)

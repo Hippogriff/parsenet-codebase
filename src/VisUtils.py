@@ -2,27 +2,25 @@
 This defines a module for all sorts of visualization necessary for debugging and other
 final visualization.
 """
-import numpy as np
-from matplotlib import pyplot as plt
-from typing import List
-from open3d import *
-import numpy as np
-from typing import List
-from .utils import visualize_point_cloud
-import matplotlib.pyplot as plt
+import copy
 import os
+from random import shuffle
+from typing import List
+
+import matplotlib.pyplot as plt
+import numpy as np
+import trimesh
 from geomdl.tessellate import make_triangle_mesh
 from open3d import *
-from random import shuffle
-from transforms3d.euler import euler2mat, mat2euler
-from transforms3d.affines import compose
+from open3d import *
 from open3d import utility
 from open3d import visualization
-import copy
-import trimesh
-
+from transforms3d.affines import compose
+from transforms3d.euler import euler2mat
 
 Vector3dVector, Vector3iVector = utility.Vector3dVector, utility.Vector3iVector
+
+
 # TODO Visualizing input and output in a grid
 # TODO look at the meshutils
 # TODO Other grid visualization
@@ -115,6 +113,7 @@ def convert_into_open3d_format(points, tessellate=False):
             pcd.colors = Vector3dVector(points[:, 3:] / 255.0)
     return pcd
 
+
 def generate_grid(pcds: List):
     batch_size = len(pcds)
 
@@ -135,7 +134,7 @@ def generate_grid(pcds: List):
 
 
 def visualize_compare_gt_pred(path_gt, path_pred, suffix=".xyz", tessalte=False):
-    print (path_gt, path_pred)
+    print(path_gt, path_pred)
     pcds_gt = []
     for root, dirs, files in os.walk(path_gt):
         for f in files:
@@ -149,10 +148,10 @@ def visualize_compare_gt_pred(path_gt, path_pred, suffix=".xyz", tessalte=False)
             if f.endswith(suffix):
                 pcds_pred.append(root + "/" + f)
     pcds_pred.sort()
-    print (len(pcds_pred))
+    print(len(pcds_pred))
     for i in range(min(len(pcds_pred), len(pcds_gt))):
         pcds = []
-        print (np.loadtxt(pcds_gt[i])[:, 0:3].shape)
+        print(np.loadtxt(pcds_gt[i])[:, 0:3].shape)
         pts_pred = np.loadtxt(pcds_pred[i])[:, 0:3]
         pts_gt = np.loadtxt(pcds_gt[i])[:, 0:3]
         pcds.append()
@@ -165,7 +164,7 @@ def tessalate_points(points, size_u, size_v, mask=None):
     points = points.reshape((size_u * size_v, 3))
     points = [list(points[i, :]) for i in range(points.shape[0])]
     vertex, triangle = make_triangle_mesh(points, size_u, size_v, mask=mask)
-    
+
     triangle = [t.data for t in triangle]
     mesh = open3d.geometry.TriangleMesh()
     mesh.vertices = Vector3dVector(np.array(vertex))
@@ -184,6 +183,7 @@ def save_xyz(points, root_path, epoch, prefix, color=None):
         else:
             pcd = points[i]
         np.savetxt(root_path + "{}_{}_{}.xyz".format(prefix, epoch, i), pcd)
+
 
 def save_xyz_continuous(points, root_path, id, prefix, color=None):
     """
@@ -246,7 +246,7 @@ def vis_batch_in_grid(points, tessalate=False):
 def custom_draw_geometry_load_option(pcds, render=False):
     R = euler2mat(-15 * 3.14 / 180, -35 * 3.14 / 180, 35)
     M = compose(T=(0, 0, 0), R=R, Z=(1, 1, 1))
-   
+
     vis = visualization.Visualizer()
     vis.create_window()
     for pcd in pcds:
@@ -259,6 +259,7 @@ def custom_draw_geometry_load_option(pcds, render=False):
         vis.destroy_window()
         return image
     vis.destroy_window()
+
 
 def save_images_from_list_pcds(pcds: List, vis, pcd, path_template=None):
     pcd = copy.deepcopy(pcd)
@@ -303,7 +304,7 @@ def save_images_from_list_pcds_meshes(pcds: List, vis, pcd, path_template=None):
             vis.poll_events()
             vis.update_renderer()
         image = np.array(vis.capture_screen_float_buffer())
-        
+
         plt.imsave(path_template.format(index), image[200:-200, 200:-200])
 
 
@@ -322,11 +323,11 @@ def save_images_shape_patches_collection(Pcds: List, path_template=None):
         vis = visualization.Visualizer()
         vis.create_window()
         vis.get_render_option().load_from_json("../render_options.json")
-#         param = io.read_pinhole_camera_parameters("viewpoint.json")
-        
+        #         param = io.read_pinhole_camera_parameters("viewpoint.json")
+
         for s in shape_list:
             vis.add_geometry(s)
-        
+
         for i in range(3):
             if i == 0:
                 pass
@@ -337,8 +338,8 @@ def save_images_shape_patches_collection(Pcds: List, path_template=None):
                 vis.poll_events()
 
                 vis.update_renderer()
-#             ctr = vis.get_view_control()
-#             ctr.convert_from_pinhole_camera_parameters(param)
+            #             ctr = vis.get_view_control()
+            #             ctr.convert_from_pinhole_camera_parameters(param)
 
             vis.run()
             image = np.array(vis.capture_screen_float_buffer())
@@ -423,7 +424,6 @@ class VizGridAll:
             print("Not Impletementd Yet!")
 
 
-
 # def grid_general_lists_visulation(pcds: List[List], viz=False):
 #     """
 #     Every list contains a list of points clouds to be visualized.
@@ -500,6 +500,7 @@ def grid_points_lists_visulation(pcds: List, viz=False):
         visualization.draw_geometries(new_meshes)
     return new_meshes
 
+
 def grid_meshes_lists_visulation(pcds, viz=False) -> None:
     """
     Every list contains a list of points clouds to be visualized.
@@ -533,6 +534,7 @@ class MeshData:
     """
     Return the mesh data given the index of the test shape
     """
+
     def __init__(self):
         path_txt = "/mnt/gypsum/mnt/nfs/work1/kalo/gopalsharma/Projects/surfacefitting/dataset/filtered_data/points/new_test_all_disconnected.txt"
         self.path_meshes = "/mnt/gypsum/mnt/nfs/work1/kalo/gopalsharma/Projects/surfacefitting/dataset/filtered_data/points/mesh_data/meshes/"
@@ -540,21 +542,21 @@ class MeshData:
         with open(path_txt, "r") as file:
             self.all_paths = file.readlines()
         self.all_paths = [a[0:-1] for a in self.all_paths]
-        
+
     def return_open3d_mesh(self, vertices, triangles):
         mesh = geometry.TriangleMesh()
         mesh.vertices = utility.Vector3dVector(vertices)
-        mesh.triangles =  utility.Vector3iVector(triangles)
+        mesh.triangles = utility.Vector3iVector(triangles)
         return mesh
-    
+
     def retrieve_mesh(self, index, viz=False):
         mesh = trimesh.load_mesh(self.path_meshes + index + ".obj")
         new_mesh = self.return_open3d_mesh(mesh.vertices, mesh.faces)
         if viz:
-#             visualization.draw_geometries([new_mesh])
+            #             visualization.draw_geometries([new_mesh])
             custom_draw_geometry_load_option([new_mesh])
         return new_mesh
-    
+
     def custom_draw_geometry_load_option(self, pcds):
         vis = visualization.Visualizer()
         vis.create_window()

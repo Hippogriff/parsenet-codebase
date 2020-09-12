@@ -3,14 +3,9 @@ This script defines loss functions for AE based training.
 """
 import numpy as np
 import torch
-import time
-import numpy as np
-from lapsolver import solve_dense
 from torch.nn import ReLU
-from torch.autograd.variable import Variable
-from src.mean_shift import MeanShift
-import torch.nn.functional as F
 
+from src.mean_shift import MeanShift
 
 meanshift = MeanShift()
 WEIGHT = False
@@ -33,7 +28,6 @@ class EmbeddingLoss:
         self.margin = margin
         self.if_mean_shift = if_mean_shift
 
-        
     def triplet_loss(self, output, labels: np.ndarray, iterations=5):
         """
         Triplet loss
@@ -46,11 +40,11 @@ class EmbeddingLoss:
         N = output.shape[2]
         loss_diff = torch.tensor([0.], requires_grad=True).cuda()
         relu = torch.nn.ReLU()
-        
+
         output = output.permute(0, 2, 1)
         output = torch.nn.functional.normalize(output, p=2, dim=2)
         new_output = []
-        
+
         if self.if_mean_shift:
             for b in range(batch_size):
                 new_X, bw = meanshift.mean_shift(output[b], 4000,
@@ -58,7 +52,7 @@ class EmbeddingLoss:
                                                  nms=False)
                 new_output.append(new_X)
             output = torch.stack(new_output, 0)
-        
+
         num_sample_points = {}
         sampled_points = {}
         for i in range(batch_size):
@@ -73,9 +67,9 @@ class EmbeddingLoss:
                 sampled_indices = np.where(ix)[0]
                 # point indices that belong to a certain cluster.
                 sampled_points[i][l] = np.random.choice(
-                        list(sampled_indices),
-                        num_sample_points[i],
-                        replace=True)
+                    list(sampled_indices),
+                    num_sample_points[i],
+                    replace=True)
 
         sampled_predictions = {}
         for i in range(batch_size):
@@ -121,7 +115,7 @@ class EmbeddingLoss:
 
                 satisfied = torch.sum(constraint > 0) + 1.0
                 satisfied = satisfied.type(torch.cuda.FloatTensor)
-                
+
                 loss_shape = loss_shape + loss / satisfied.detach()
 
             loss_shape = loss_shape / (normalization + 1e-8)

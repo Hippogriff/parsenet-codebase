@@ -1,36 +1,24 @@
-import numpy as np
-from src.utils import visualize_point_cloud
-import torch
-from torch.autograd.gradcheck import gradcheck
-from src.curve_utils import DrawSurfs
-from open3d import *
-from src.curve_utils import DrawSurfs
-import open3d
-import numpy as np
-import torch
-from src.VisUtils import tessalate_points
-from src.utils import draw_geometries
-from torch.autograd.variable import Variable
-from torch.autograd import Function
-import time
-from src.loss import (
-    basis_function_one,
-    uniform_knot_bspline,
-    spline_reconstruction_loss,
-)
-from src.utils import visualize_point_cloud
-from geomdl import fitting as geomdl_fitting
-from lapsolver import solve_dense
-from src.curve_utils import DrawSurfs
-from open3d import *
 import copy
-from src.eval_utils import to_one_hot
-from src.segment_utils import mean_IOU_one_sample, iou_segmentation, to_one_hot, matching_iou, relaxed_iou, relaxed_iou_fast
+import time
+
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib import cm
-from src.guard import guard_exp
+import open3d
+import torch
 import torch.nn.functional as F
+from lapsolver import solve_dense
+from matplotlib import cm
+from open3d import *
+from open3d import *
+from torch.autograd import Function
+
+from src.VisUtils import tessalate_points
+from src.curve_utils import DrawSurfs
+from src.eval_utils import to_one_hot
+from src.guard import guard_exp
+from src.segment_utils import to_one_hot, matching_iou, relaxed_iou, \
+    relaxed_iou_fast
+from src.utils import draw_geometries
+from src.utils import visualize_point_cloud
 
 Vector3dVector, Vector3iVector = utility.Vector3dVector, utility.Vector3iVector
 draw_surf = DrawSurfs()
@@ -44,7 +32,7 @@ regular_parameters = draw_surf.regular_parameterization(30, 30)
 class LeastSquares:
     def __init__(self):
         pass
-    
+
     def lstsq(self, A, Y, lamb=0.0):
         """
         Differentiable least square
@@ -53,7 +41,8 @@ class LeastSquares:
         """
         cols = A.shape[1]
         if np.isinf(A.data.cpu().numpy()).any():
-            import ipdb; ipdb.set_trace()
+            import ipdb;
+            ipdb.set_trace()
 
         # Assuming A to be full column rank
         if cols == torch.matrix_rank(A):
@@ -84,7 +73,7 @@ def best_lambda(A):
     """
     lamb = 1e-6
     cols = A.shape[0]
-    
+
     for i in range(7):
         A_dash = A + lamb * torch.eye(cols, device=A.get_device())
         if cols == torch.matrix_rank(A_dash):
@@ -105,15 +94,15 @@ def up_sample_all(points, normals, weights, cluster_ids, primitives, labels):
     indices = np.argsort(dist, 1)
     neighbors = points[indices[:, 0:3]]
     centers = np.mean(neighbors, 1)
-    
+
     new_points = np.concatenate([points, centers])
     new_normals = np.concatenate([normals, normals])
     new_weights = np.concatenate([weights, weights], 1)
-    
+
     new_primitives = np.concatenate([primitives, primitives])
     new_cluster_ids = np.concatenate([cluster_ids, cluster_ids])
     new_labels = np.concatenate([labels, labels])
-    
+
     return new_points, new_normals, new_weights, new_primitives, new_cluster_ids, new_labels
 
 
@@ -157,6 +146,7 @@ def up_sample_points_numpy(points, times=1):
         points = np.concatenate([points, centers])
     return points
 
+
 def up_sample_points_torch(points, times=1):
     """
     Upsamples points based on nearest neighbors.
@@ -187,7 +177,7 @@ def up_sample_points_torch_memory_efficient(points, times=1):
         indices = []
         N = min(points.shape[0], 100)
         for i in range(points.shape[0] // N):
-            diff_ = torch.sum((torch.unsqueeze(points[i * N :(i+1) * N], 1) - torch.unsqueeze(points, 0)) ** 2, 2)
+            diff_ = torch.sum((torch.unsqueeze(points[i * N:(i + 1) * N], 1) - torch.unsqueeze(points, 0)) ** 2, 2)
             _, diff_indices = torch.topk(diff_, 5, 1, largest=False)
             indices.append(diff_indices)
         indices = torch.cat(indices, 0)
@@ -198,17 +188,18 @@ def up_sample_points_torch_memory_efficient(points, times=1):
         points = torch.cat([points, centers])
     return points
 
+
 def dist_memory_efficient(p, q):
     diff = []
     for i in range(p.shape[0]):
-        diff.append(torch.sum((torch.unsqueeze(p[i:i+1], 1) - torch.unsqueeze(q, 0)) ** 2, 2).data.cpu().numpy())
+        diff.append(torch.sum((torch.unsqueeze(p[i:i + 1], 1) - torch.unsqueeze(q, 0)) ** 2, 2).data.cpu().numpy())
     diff = np.concantenate(diff, 0)
     # diff = torch.sqrt(diff)
 
     return diff
 
+
 def up_sample_points_in_range(points, weights, a_min, a_max):
-    
     N = points.shape[0]
     if N > a_max:
         L = np.random.choice(np.arange(N), a_max, replace=False)
@@ -226,7 +217,7 @@ def up_sample_points_in_range(points, weights, a_min, a_max):
     points = points[L]
     weights = weights[L]
     return points, weights
-    
+
 
 def up_sample_points_torch_in_range(points, a_min, a_max):
     N = points.shape[0]
@@ -244,20 +235,19 @@ def up_sample_points_torch_in_range(points, a_min, a_max):
     L = np.random.choice(np.arange(N), a_max, replace=False)
     points = points[L]
     return points
-    
 
 
 def create_grid(input, grid_points, size_u, size_v, thres=0.02):
     grid_points = torch.from_numpy(grid_points.astype(np.float32)).cuda()
     input = torch.from_numpy(input.astype(np.float32)).cuda()
     grid_points = grid_points.reshape((size_u, size_v, 3))
-    
+
     grid_points.permute(2, 0, 1)
     grid_points = torch.unsqueeze(grid_points, 0)
 
     filter = np.array([[[0.25, 0.25], [0.25, 0.25]],
-           [[0, 0], [0, 0]],
-           [[0.0, 0.0], [0.0, 0.0]]]).astype(np.float32)
+                       [[0, 0], [0, 0]],
+                       [[0.0, 0.0], [0.0, 0.0]]]).astype(np.float32)
     filter = np.stack([filter, np.roll(filter, 1, 0), np.roll(filter, 2, 0)])
     filter = torch.from_numpy(filter).cuda()
     grid_mean_points = F.conv2d(grid_points.permute(0, 3, 1, 2), filter, padding=0)
@@ -268,17 +258,17 @@ def create_grid(input, grid_points, size_u, size_v, thres=0.02):
         # diff = (torch.unsqueeze(grid_mean_points, 1) - torch.unsqueeze(input, 0)) ** 2
         diff = []
         for i in range(grid_mean_points.shape[0]):
-            diff.append(torch.sum((torch.unsqueeze(grid_mean_points[i:i+1], 1) - torch.unsqueeze(input, 0)) ** 2, 2))
+            diff.append(torch.sum((torch.unsqueeze(grid_mean_points[i:i + 1], 1) - torch.unsqueeze(input, 0)) ** 2, 2))
         diff = torch.cat(diff, 0)
         diff = torch.sqrt(diff)
         indices = torch.min(diff, 1)[0] < thres
     else:
         grid_mean_points = grid_mean_points.data.cpu().numpy()
         input = input.data.cpu().numpy()
-        diff = (np.expand_dims(grid_mean_points, 1) - np.expand_dims(input, 0)) ** 2 
+        diff = (np.expand_dims(grid_mean_points, 1) - np.expand_dims(input, 0)) ** 2
         diff = np.sqrt(np.sum(diff, 2))
         indices = np.min(diff, 1) < thres
-    
+
     mask_grid = indices.reshape(((size_u - 1), (size_v - 1)))
     return mask_grid, diff, filter, grid_mean_points
 
@@ -288,8 +278,10 @@ def tessalate_points_fast(points, size_u, size_v, mask=None, viz=False):
     Given a grid points, this returns a tessalation of the grid using triangle.
     Furthermore, if the mask is given those grids are avoided.
     """
+
     def index_to_id(i, j, size_v):
         return i * size_v + j
+
     triangles = []
     vertices = points
     for i in range(0, size_u - 1):
@@ -297,9 +289,9 @@ def tessalate_points_fast(points, size_u, size_v, mask=None, viz=False):
             if mask is not None:
                 if mask[i, j] == 0:
                     continue
-            tri = [index_to_id(i, j, size_v), index_to_id(i+1, j, size_v), index_to_id(i+1, j+1, size_v)]
+            tri = [index_to_id(i, j, size_v), index_to_id(i + 1, j, size_v), index_to_id(i + 1, j + 1, size_v)]
             triangles.append(tri)
-            tri = [index_to_id(i, j, size_v), index_to_id(i+1, j+1, size_v), index_to_id(i, j+1, size_v)]
+            tri = [index_to_id(i, j, size_v), index_to_id(i + 1, j + 1, size_v), index_to_id(i, j + 1, size_v)]
             triangles.append(tri)
     new_mesh = geometry.TriangleMesh()
     new_mesh.triangles = utility.Vector3iVector(np.array(triangles))
@@ -325,19 +317,21 @@ def weights_normalize(weights, bw):
     # This is to avoid numerical issues
     if weights.shape[0] == 1:
         return prob
-    
+
     # This is done to ensure that max probability is 1 at the center.
     # this will be helpful for the spline fitting network
     prob = prob - torch.min(prob, 1, keepdim=True)[0]
     prob = prob / (torch.max(prob, 1, keepdim=True)[0] + EPS)
     return prob
-    
+
+
 def one_hot_normalization(weights):
     N, K = weights.shape
     weights = np.argmax(weights, 1)
     one_hot = to_one_hot(weights, K)
     weights = one_hot.float()
     return weights
+
 
 def SIOU(target, pred_labels):
     """
@@ -372,11 +366,11 @@ def match(target, pred_labels):
     # cost = relaxed_iou(torch.unsqueeze(cluster_ids_one_hot, 0).float(), torch.unsqueeze(labels_one_hot, 0).float())
     # cost_ = 1.0 - torch.as_tensor(cost)
     cost = relaxed_iou_fast(torch.unsqueeze(cluster_ids_one_hot, 0).float(), torch.unsqueeze(labels_one_hot, 0).float())
-    
+
     # cost_ = 1.0 - torch.as_tensor(cost)
     cost_ = 1.0 - cost.data.cpu().numpy()
     rids, cids = solve_dense(cost_[0])
-    
+
     unique_target = np.unique(target)
     unique_pred = np.unique(pred_labels)
     return rids, cids, unique_target, unique_pred
@@ -405,7 +399,7 @@ def svd_grad_K(S):
     plus = s2 + s1
 
     # TODO Look into it
-    eps = torch.ones((N, N)) * 10**(-6)
+    eps = torch.ones((N, N)) * 10 ** (-6)
     eps = eps.cuda(S.get_device())
     max_diff = torch.max(torch.abs(diff), eps)
     sign_diff = torch.sign(diff)
@@ -436,6 +430,7 @@ class CustomSVD(Function):
     original matrix is requires to deal with this situation. Left for
     future work.
     """
+
     @staticmethod
     def forward(ctx, input):
         # Note: input is matrix of size m x n with m >= n.
@@ -444,7 +439,8 @@ class CustomSVD(Function):
         try:
             U, S, V = torch.svd(input, some=True)
         except:
-            import ipdb; ipdb.set_trace()
+            import ipdb;
+            ipdb.set_trace()
 
         ctx.save_for_backward(U, S, V)
         return U, S, V
@@ -455,7 +451,9 @@ class CustomSVD(Function):
         grad_input = compute_grad_V(U, S, V, grad_V)
         return grad_input
 
+
 customsvd = CustomSVD.apply
+
 
 def standardize_points(points):
     Points = []
@@ -470,7 +468,7 @@ def standardize_points(points):
         stds.append(std)
         means.append(mean)
         Rs.append(R)
-    
+
     Points = np.stack(Points, 0)
     return Points, stds, means, Rs
 
@@ -478,7 +476,7 @@ def standardize_points(points):
 def standardize_point(point):
     mean = torch.mean(point, 0)[0]
     point = point - mean
-    
+
     S, U = pca_numpy(point)
     smallest_ev = U[:, np.argmin(S)]
     R = rotation_matrix_a_to_b(smallest_ev, np.array([1, 0, 0]))
@@ -506,7 +504,7 @@ def standardize_points_torch(points, weights):
         stds.append(std)
         means.append(mean)
         Rs.append(R)
-    
+
     Points = torch.stack(Points, 0)
     return Points, stds, means, Rs
 
@@ -524,7 +522,7 @@ def standardize_point_torch(point, weights):
             _, higher_indices = torch.topk(weights[:, 0], weights.shape[0] // 2)
 
     weighted_points = point[higher_indices] * weights[higher_indices]
-    
+
     # Note: gradients throught means, force the network to produce correct means.
     mean = torch.sum(weighted_points, 0) / (torch.sum(weights[higher_indices]) + EPS)
 
@@ -533,12 +531,12 @@ def standardize_point_torch(point, weights):
     # take only very confident points to compute PCA direction.
     S, U = pca_torch(point[higher_indices])
     smallest_ev = U[:, torch.min(S[:, 0], 0)[1]].data.cpu().numpy()
-    
+
     R = rotation_matrix_a_to_b(smallest_ev, np.array([1, 0, 0]))
 
     # axis aligns with x axis.
     R = R.astype(np.float32)
-    
+
     R = torch.from_numpy(R).cuda(point.get_device()).detach()
 
     point = R @ torch.transpose(point, 1, 0)
@@ -548,7 +546,8 @@ def standardize_point_torch(point, weights):
     try:
         std = torch.abs(torch.max(weighted_points, 0)[0] - torch.min(weighted_points, 0)[0])
     except:
-        import ipdb; ipdb.set_trace()
+        import ipdb;
+        ipdb.set_trace()
     std = std.reshape((1, 3)).detach()
     point = point / (std + EPS)
     return point, std, mean, R
@@ -569,8 +568,8 @@ def rotation_matrix_a_to_b(A, B):
     w = w / (np.linalg.norm(w) + EPS)
     F = np.stack([u, v, w], 1)
     G = np.array([[cos, -sin, 0],
-              [sin, cos, 0],
-              [0, 0, 1]])
+                  [sin, cos, 0],
+                  [0, 0, 1]])
     try:
         R = F @ G @ np.linalg.inv(F)
     except:
@@ -628,7 +627,7 @@ def project_to_plane(points, a, d):
     a = a / torch.norm(a, 2)
     # Project on the same plane but passing through origin
     projections = points - ((points @ a).permute(1, 0) * a).permute(1, 0)
-    
+
     # shift the points on the plane back to the original d distance
     # from origin
     projections = projections + a.transpose(1, 0) * d
@@ -650,10 +649,10 @@ def bit_mapping_points(input, output_points, thres, size_u, size_v, mesh=None):
     else:
         mesh = tessalate_points(output_points, size_u, size_v)
     vertices = np.array(mesh.vertices)
-    triangles = np.array(mesh.triangles) 
+    triangles = np.array(mesh.triangles)
     output = np.mean(vertices[triangles], 1)
-    diff = (np.expand_dims(output, 1) - np.expand_dims(input, 0)) ** 2 
-    diff = np.sqrt(np.sum(diff, 2)) 
+    diff = (np.expand_dims(output, 1) - np.expand_dims(input, 0)) ** 2
+    diff = np.sqrt(np.sum(diff, 2))
     indices = np.min(diff, 1) < thres
     mesh = copy.deepcopy(mesh)
     t = np.array(mesh.triangles)
@@ -674,10 +673,10 @@ def bit_mapping_points(input, output_points, thres, size_u, size_v, mesh=None):
     else:
         mesh = tessalate_points(output_points, size_u, size_v)
     vertices = np.array(mesh.vertices)
-    triangles = np.array(mesh.triangles) 
+    triangles = np.array(mesh.triangles)
     output = np.mean(vertices[triangles], 1)
-    diff = (np.expand_dims(output, 1) - np.expand_dims(input, 0)) ** 2 
-    diff = np.sqrt(np.sum(diff, 2)) 
+    diff = (np.expand_dims(output, 1) - np.expand_dims(input, 0)) ** 2
+    diff = np.sqrt(np.sum(diff, 2))
     indices = np.min(diff, 1) < thres
     mesh = copy.deepcopy(mesh)
     t = np.array(mesh.triangles)
@@ -705,7 +704,7 @@ def display_inlier_outlier(cloud, ind):
 def remove_outliers(points, viz=False):
     pcd = visualize_point_cloud(points)
     cl, ind = pcd.remove_statistical_outlier(nb_neighbors=20,
-                                                    std_ratio=0.50)
+                                             std_ratio=0.50)
     if viz:
         display_inlier_outlier(voxel_down_pcd, ind)
     return np.array(cl.points)

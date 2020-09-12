@@ -1,39 +1,21 @@
-from open3d import *
-
-import sys
-import logging
-import json
 import os
-from shutil import copyfile
+
 import numpy as np
-import torch.optim as optim
 import torch.utils.data
+from open3d import *
 from torch.autograd import Variable
-from torch.optim.lr_scheduler import ReduceLROnPlateau
-from src.PointNet import PrimitivesEmbeddingDGCNGn
-from matplotlib import pyplot as plt
-from src.utils import visualize_uv_maps, visualize_fitted_surface
-from src.utils import chamfer_distance
-from read_config import Config
-from src.utils import fit_surface_sample_points
-from src.dataset_segments import Dataset
 from torch.utils.data import DataLoader
-from src.utils import chamfer_distance
-from src.segment_loss import EmbeddingLoss
-from src.segment_utils import cluster
-import time
+
+from read_config import Config
+from src.PointNet import PrimitivesEmbeddingDGCNGn
+from src.dataset import generator_iter
+from src.dataset_segments import Dataset
+from src.mean_shift import MeanShift
+from src.residual_utils import Evaluation
 from src.segment_loss import (
     EmbeddingLoss,
-    primitive_loss,
-    normals_loss,
-    meanIOU,
-    evaluate_one_category_3,
 )
-from src.utils import visualize_point_cloud_from_labels, visualize_point_cloud
-from src.dataset import generator_iter
-from src.mean_shift import MeanShift
 from src.segment_utils import SIOU_matched_segments
-from src.residual_utils import Evaluation
 
 config = Config("config.yml")
 model_name = config.pretrain_modelpath
@@ -78,7 +60,6 @@ dataset = Dataset(
     if_train_data=False
 )
 
-
 path_to_save = "../logs_curve_fitting/outputs/{}/".format(model_name)
 os.makedirs(path_to_save, exist_ok=True)
 evaluation = Evaluation()
@@ -106,7 +87,7 @@ for quantile in [0.015]:
     test_res_splines = []
     for val_b_id in range(config.num_test // config.batch_size - 1):
         points_, labels, normals, primitives = next(get_test_data)[0]
-        
+
         points = Variable(torch.from_numpy(points_.astype(np.float32))).cuda()
         l_permute = np.arange(10000)
         normals = torch.from_numpy(normals).cuda()
@@ -141,13 +122,13 @@ for quantile in [0.015]:
                 if torch.unique(new_labels).shape[0] <= 50:
                     break
                 else:
-                    print ("Number of clusters more than 50!")
+                    print("Number of clusters more than 50!")
                     # increase the quantile so that number of clusters increases
                     quant *= 1.2
 
             distances.append(center @ torch.transpose(embedding[b], 1, 0))
             new_labels = new_labels.data.cpu().numpy()
-            cluster_ids.append(new_labels) 
+            cluster_ids.append(new_labels)
             centers.append(center)
             bandwidths.append(bandwidth)
 
@@ -170,7 +151,9 @@ for quantile in [0.015]:
                     1,
                 )
             except:
-                import ipdb; ipdb.set_trace()
+                import ipdb;
+
+                ipdb.set_trace()
             np.savetxt(
                 path_to_save + "gauss_{}_{}.txt".format(quantile, val_b_id * config.batch_size + b),
                 data,
@@ -189,9 +172,14 @@ for quantile in [0.015]:
                 fmt="%1.3f",
             )
 
-            s_iou, p_iou, _ = SIOU_matched_segments(labels[b], cluster_ids[b], primitives_log_prob[b], primitives[b], distances[b].T.data.cpu().numpy())
+            s_iou, p_iou, _ = SIOU_matched_segments(labels[b], cluster_ids[b], primitives_log_prob[b], primitives[b],
+                                                    distances[b].T.data.cpu().numpy())
 
-            res, parameters, pred_mesh = evaluation.residual_eval_mode(points[b], normals[b], labels[b], cluster_ids[b], primitives[b], primitives_log_prob[b], distances[b].T.data.cpu().numpy(), bandwidths[b].item(), sample_points=False, if_optimize=False)
+            res, parameters, pred_mesh = evaluation.residual_eval_mode(points[b], normals[b], labels[b], cluster_ids[b],
+                                                                       primitives[b], primitives_log_prob[b],
+                                                                       distances[b].T.data.cpu().numpy(),
+                                                                       bandwidths[b].item(), sample_points=False,
+                                                                       if_optimize=False)
 
             test_siou.append(s_iou)
             test_piou.append(p_iou)
@@ -202,8 +190,9 @@ for quantile in [0.015]:
                 test_res_geometry.append(res[1])
             if res[2] > 0:
                 test_res_splines.append(res[2])
-            
-            print (val_b_id, s_iou, p_iou, res[0].item(), res[1], res[2])
+
+            print(val_b_id, s_iou, p_iou, res[0].item(), res[1], res[2])
         # print("iter: {} in time: {}".format(val_b_id, time.time() - t1))
 
-    print("result", quantile, torch.mean(torch.stack(test_res)), np.mean(test_res_geometry), np.mean(test_res_splines), np.mean(test_siou), np.mean(test_piou))
+    print("result", quantile, torch.mean(torch.stack(test_res)), np.mean(test_res_geometry), np.mean(test_res_splines),
+          np.mean(test_siou), np.mean(test_piou))

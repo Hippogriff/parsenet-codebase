@@ -3,38 +3,25 @@ This script describes all fitting modules like bspline fitting, geometric
 primitives. The idea is to call each module with required input parameters
 and get as an output the parameters of fitting.
 """
-import open3d
 import numpy as np
-import torch
-from src.VisUtils import tessalate_points
-from src.utils import draw_geometries
-from torch.autograd.variable import Variable
-from src.primitive_forward import Fit
-from src.loss import (
-    basis_function_one,
-    uniform_knot_bspline,
-    spline_reconstruction_loss,
-)
-from src.utils import visualize_point_cloud
-from geomdl import fitting as geomdl_fitting
-from lapsolver import solve_dense
-from src.curve_utils import DrawSurfs
-from open3d import *
-import copy
-from src.fitting_utils import (
-    sample_points_from_control_points_,
-    standardize_points_torch,
-    rotation_matrix_a_to_b,
-    pca_numpy,
-    reverse_all_transformations,
-    project_to_point_cloud,
-    project_to_plane,
-    bit_map_mesh,
-    bit_mapping_points,
-)
-from src.primitive_forward import forward_pass_open_spline, forward_closed_splines, initialize_open_spline_model, initialize_closed_spline_model
+import open3d
 import scipy
+import torch
+from lapsolver import solve_dense
+from open3d import *
 
+from src.VisUtils import tessalate_points
+from src.curve_utils import DrawSurfs
+from src.fitting_utils import (
+    project_to_plane,
+)
+from src.loss import (
+    uniform_knot_bspline,
+)
+from src.primitive_forward import Fit
+from src.primitive_forward import forward_pass_open_spline, forward_closed_splines, initialize_open_spline_model, \
+    initialize_closed_spline_model
+from src.utils import visualize_point_cloud
 
 Vector3dVector, Vector3iVector = utility.Vector3dVector, utility.Vector3iVector
 draw_surf = DrawSurfs()
@@ -57,7 +44,7 @@ class Arap:
                                                                  [size_u, size_v]),
                                             [size_u * size_v])[0])
         self.indices = indices
-        
+
     def deform(self, recon_points, gt_points, viz=False):
         """
         ARAP, given recon_points, that are in grid, we first create a mesh out of
@@ -69,7 +56,7 @@ class Arap:
         """
         new_recon_points = recon_points.reshape((self.size_u, self.size_v, 3))
         mesh = tessalate_points(recon_points, self.size_u, self.size_v)
-    
+
         new_recon_points = recon_points.reshape((self.size_u, self.size_v, 3))
 
         mesh_ = mesh
@@ -80,11 +67,11 @@ class Arap:
                                                                          np.array(mesh_.vertices))
             constraint_ids = np.array(constraint_ids, dtype=np.int32)
             constraint_pos = open3d.utility.Vector3dVector(constraint_pos)
-            
+
             mesh_prime = mesh.deform_as_rigid_as_possible(
                 open3d.utility.IntVector(constraint_ids), constraint_pos, max_iter=500)
             mesh_ = mesh_prime
-            
+
         if viz:
             pcd = visualize_point_cloud(gt_points)
             mesh_prime.compute_vertex_normals()
@@ -92,16 +79,16 @@ class Arap:
             handles = open3d.geometry.PointCloud()
             handles.points = constraint_pos
             handles.paint_uniform_color((0, 1, 0))
-            open3d.visualization.draw_geometries([mesh, mesh_prime, handles, pcd]) 
+            open3d.visualization.draw_geometries([mesh, mesh_prime, handles, pcd])
         return mesh_prime
-    
+
     def get_boundary_indices(self, m, n):
         l = []
-        for i in range(m): 
-            for j in range(n): 
-                if (j == 0): 
-                    l.append((i, j) )
-                elif (j == n-1): 
+        for i in range(m):
+            for j in range(n):
+                if (j == 0):
+                    l.append((i, j))
+                elif (j == n - 1):
                     l.append((i, j))
         return l
 
@@ -120,7 +107,7 @@ class Arap:
         # Input points need to at least 1.2 times more than output points
         L = np.random.choice(np.arange(input.shape[0]), int(1.2 * out.shape[0]), replace=False)
         input = input[L]
-        
+
         dist = scipy.spatial.distance.cdist(out, input)
         rids, cids = solve_dense(dist)
         matched = input[cids]
@@ -150,7 +137,8 @@ class FittingModule:
         # NOTE: this will avoid back ward pass through the encoder of SplineNet.
         points.requires_grad = False
         reconst_points = forward_pass_open_spline(
-            input_points_=points, control_decoder=self.open_control_decoder, nu=self.nu, nv=self.nv, if_optimize=if_optimize, weights=weights)[1]
+            input_points_=points, control_decoder=self.open_control_decoder, nu=self.nu, nv=self.nv,
+            if_optimize=if_optimize, weights=weights)[1]
         # reconst_points = np.array(reconst_points).astype(np.float32)
         torch.cuda.empty_cache()
         self.fitting.parameters[ids] = ["open-spline", reconst_points]
@@ -163,7 +151,7 @@ class FittingModule:
             points, self.closed_control_decoder, self.nu, self.nv, if_optimize=if_optimize, weights=weights)[2]
         torch.cuda.empty_cache()
         self.fitting.parameters[ids] = ["closed-spline", reconst_points]
-        
+
         return reconst_points
 
     def forward_pass_plane(self, points, normals, weights, ids, sample_points=False):
@@ -198,12 +186,14 @@ class FittingModule:
                 ids=ids,
             )
         except:
-            import ipdb; ipdb.set_trace()
-        
+            import ipdb;
+            ipdb.set_trace()
+
         self.fitting.parameters[ids] = ["cone", apex.reshape((1, 3)), axis.reshape((3, 1)), theta]
         if sample_points:
             new_points, new_normals = self.fitting.sample_cone_trim(
-                apex.data.cpu().numpy().reshape(3), axis.data.cpu().numpy().reshape(3), theta.item(), points.data.cpu().numpy()
+                apex.data.cpu().numpy().reshape(3), axis.data.cpu().numpy().reshape(3), theta.item(),
+                points.data.cpu().numpy()
             )
             # new_points = project_to_point_cloud(points, new_points)
             return new_points

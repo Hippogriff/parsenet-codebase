@@ -2,50 +2,23 @@ import sys
 
 sys.path.append("../")
 
-import numpy as np
-from src.utils import (
-    visualize_point_cloud_from_labels,
-    visualize_point_cloud,
-    draw_geometries,
-)
-import time
-
 import time
 from scipy import stats
-import torch
-from src.primitive_forward import Fit
-from src.fitting_utils import bit_mapping_points
-from src.VisUtils import custom_draw_geometry_load_option
-import matplotlib.pyplot as plt
 from src.primitives import ResidualLoss
 from src.primitive_forward import fit_one_shape_torch
-from src.VisUtils import grid_points_lists_visulation
 from src.fitting_optimization import FittingModule
 import numpy as np
 import torch
-from src.VisUtils import tessalate_points
-from src.primitives import ComputePrimitiveDistance
 from src.fitting_utils import (
-    SIOU,
-    visualize_weighted_points,
     weights_normalize,
     to_one_hot,
-    relaxed_iou,
-    solve_dense,
     match,
-    one_hot_normalization,
 )
-from src.VisUtils import tessalate_points
 from open3d import *
-from src.segment_utils import primitive_type_segment_torch
-
 
 Vector3dVector, Vector3iVector = utility.Vector3dVector, utility.Vector3iVector
-import copy
-from src.VisUtils import MeshData
 from src.mean_shift import MeanShift
 from src.segment_utils import SIOU_matched_segments
-
 
 colors = np.random.random((10, 3))
 colors[0] = np.array([0.2, 0.3, 0.6])
@@ -80,7 +53,7 @@ class Evaluation:
             closed_path = "logs/pretrained_models/closed_spline.pth"
         if open_path == None:
             open_path = "logs/pretrained_models/open_spline.pth"
-        
+
         self.res_loss = ResidualLoss()
         self.fitter = FittingModule(closed_path, open_path)
 
@@ -91,7 +64,7 @@ class Evaluation:
             param.requires_grad = False
         self.ms = MeanShift()
 
-    def guard_mean_shift(self, embedding,  quantile, iterations, kernel_type="gaussian"):
+    def guard_mean_shift(self, embedding, quantile, iterations, kernel_type="gaussian"):
         """
         Some times if band width is small, number of cluster can be larger than 50, that
         but we would like to keep max clusters 50 as it is the max number in our dataset.
@@ -108,7 +81,6 @@ class Evaluation:
                 break
         return center, bandwidth, cluster_ids
 
-        
     def fitting_loss(
             self,
             embedding,
@@ -153,7 +125,7 @@ class Evaluation:
                     weights,
                     bandwidth,
                     lamb=lamb
-                    )
+                )
             else:
                 loss, parameters, pred_mesh, gtpoints, distance, _, _ = self.residual_eval_mode(
                     points[b],
@@ -172,7 +144,8 @@ class Evaluation:
                 weights = to_one_hot(cluster_ids, np.unique(cluster_ids.data.data.cpu().numpy()).shape[0]).T
 
             with torch.no_grad():
-                s_iou, p_iou, _, _ = SIOU_matched_segments(labels[b], cluster_ids.data.cpu().numpy(), primitives_log_prob[b], primitives[b], weights.T)
+                s_iou, p_iou, _, _ = SIOU_matched_segments(labels[b], cluster_ids.data.cpu().numpy(),
+                                                           primitives_log_prob[b], primitives[b], weights.T)
             loss = loss + [s_iou, p_iou]
         return loss, [parameters, cluster_ids.data.cpu().numpy(), weights]
 
@@ -233,20 +206,20 @@ class Evaluation:
         return Loss, self.fitter.fitting.parameters, None, rows, cols, distance
 
     def residual_eval_mode(
-        self,
-        points,
-        normals,
-        labels,
-        cluster_ids,
-        primitives,
-        pred_primitives,
-        weights,
-        bw,
-        lamb=1.0,
-        sample_points=False,
-        if_optimize=False,
-        if_visualize=False,
-        epsilon=None
+            self,
+            points,
+            normals,
+            labels,
+            cluster_ids,
+            primitives,
+            pred_primitives,
+            weights,
+            bw,
+            lamb=1.0,
+            sample_points=False,
+            if_optimize=False,
+            if_visualize=False,
+            epsilon=None
     ):
         """
         Computes residual error in eval mode.
@@ -282,7 +255,7 @@ class Evaluation:
                     continue
 
             l = stats.mode(pred_primitives[pred_indices_i])[0]
-            
+
             if if_visualize:
                 # for post process refinement, we need to have matching of
                 # predicted points with ground truth points. Since we don't
@@ -384,12 +357,12 @@ class Evaluation:
             else:
                 geometric_loss.append(distance[v][1].item())
                 Loss.append(distance[v][1])
-            
+
         try:
             Loss = torch.mean(torch.stack(Loss))
         except:
             Loss = torch.zeros(1).cuda()
-        
+
         if len(geometric_loss) > 0:
             geometric_loss = np.mean(geometric_loss)
         else:

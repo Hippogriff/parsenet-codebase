@@ -2,13 +2,14 @@
 This implements differentiable mean shift clustering
 algorithm for the use in deep learning.
 """
-import torch
 import numpy as np
+import torch
+
 from src.guard import guard_exp, guard_sqrt
 
 
 class MeanShift:
-    def __init__(self,):
+    def __init__(self, ):
         """
         Differentiable mean shift clustering inspired from
         https://arxiv.org/pdf/1712.08273.pdf
@@ -34,14 +35,14 @@ class MeanShift:
         new_X, _ = self.mean_shift_(X, b=bw, iterations=iterations, kernel_type=kernel_type)
         if not nms:
             return new_X, bw
-        
+
         with torch.no_grad():
             _, indices, new_labels = self.nms(new_X, X, b=bw)
         center = new_X[indices]
-        
+
         return new_X, center, bw, new_labels
-    
-    def mean_shift_(self, X, b, iterations = 10, kernel_type="gaussian"):
+
+    def mean_shift_(self, X, b, iterations=10, kernel_type="gaussian"):
         """
         Differentiable mean shift clustering.
         X are assumed to lie on the hyper shphere, and thus are normalized
@@ -65,19 +66,19 @@ class MeanShift:
                 dist = 2.0 - 2.0 * new_X @ torch.transpose(X, 1, 0)
                 dist = 3 / 4 * (1 - dist / (b ** 2))
                 K = torch.nn.functional.relu(dist)
-            
+
             D = 1 / (torch.sum(K, 1, keepdim=True))
 
             # K: N x N, X: N x d, D: N x 1
             M = (K @ X) * D - new_X
             new_X = new_X + delta * M
-            
+
             # re-normalize it to lie on unit hyper-sphere.
             new_X = new_X / torch.norm(new_X, dim=1, p=2, keepdim=True)
         # new_X: center of the clusters
         return new_X, X
 
-    def guard_mean_shift(self, embedding,  quantile, iterations, kernel_type="gaussian"):
+    def guard_mean_shift(self, embedding, quantile, iterations, kernel_type="gaussian"):
         """
         Some times if band width is small, number of cluster can be larger than 50, that
         but we would like to keep max clusters 50 as it is the max number in our dataset.
@@ -93,7 +94,7 @@ class MeanShift:
             else:
                 break
         return center, bandwidth, cluster_ids
-    
+
     def kernel(self, X, kernel_type, bw):
         """
         Assuing that the feature vector in X are normalized.
@@ -110,7 +111,7 @@ class MeanShift:
             dist = 3 / 4 * (1 - dist / (bw ** 2))
             K = torch.nn.functional.relu(dist)
         return K
-        
+
     def compute_bandwidth(self, X, num_samples, quantile):
         """
         Compute the bandwidth for mean shift clustering.
@@ -142,7 +143,7 @@ class MeanShift:
         :param X: points to be clustered
         :param b: band width used to get the centers
         """
-        membership =  2.0 - 2.0 * centers @ torch.transpose(X, 1, 0)
+        membership = 2.0 - 2.0 * centers @ torch.transpose(X, 1, 0)
 
         # which cluster center is closer to the points
         membership = torch.min(membership, 0)[1]
@@ -177,16 +178,13 @@ class MeanShift:
         labels = torch.max(temp, 0)[1]
         return centers, cluster_center_ids, labels
 
-    
     def pdist(self, x, y):
         x = torch.unsqueeze(x, 1)
         y = torch.unsqueeze(y, 0)
         dist = torch.sum((x - y) ** 2, 2)
         return dist
 
-
         # return torch.unique(torch.max(cluster_nbrs[uniques] * num_mem_cluster.reshape((1, -1)), 0)[1])
-
 
 # def nms(new_X, X, b):
 #     membership = new_X @ torch.transpose(X, 1, 0)

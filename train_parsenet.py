@@ -1,37 +1,28 @@
 """
 This scrip trains model to predict per point primitive type.
 """
-import open3d
-import sys
-import logging
 import json
+import logging
 import os
+import sys
 from shutil import copyfile
+
 import numpy as np
 import torch.optim as optim
 import torch.utils.data
-from torch.autograd import Variable
+from tensorboard_logger import configure, log_value
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from src.PointNet import PrimitivesEmbeddingDGCNGn
-from matplotlib import pyplot as plt
-from src.utils import visualize_uv_maps, visualize_fitted_surface
-from src.utils import chamfer_distance
-from read_config import Config
-from src.utils import fit_surface_sample_points
-from src.dataset_segments import Dataset
 from torch.utils.data import DataLoader
-from src.utils import chamfer_distance
-from src.utils import chamfer_distance
+
+from read_config import Config
+from src.PointNet import PrimitivesEmbeddingDGCNGn
+from src.dataset import generator_iter
+from src.dataset_segments import Dataset
 from src.segment_loss import (
     EmbeddingLoss,
     evaluate_miou,
     primitive_loss
 )
-import os
-from tensorboard_logger import configure, log_value
-from src.dataset import generator_iter
-import sys
-
 
 config = Config(sys.argv[1])
 model_name = config.model_path.format(
@@ -59,7 +50,7 @@ logger.addHandler(file_handler)
 logger.addHandler(handler)
 
 with open(
-    "logs/configs/{}_config.json".format(model_name), "w"
+        "logs/configs/{}_config.json".format(model_name), "w"
 ) as file:
     json.dump(vars(config), file)
 source_file = __file__
@@ -74,25 +65,25 @@ Loss = EmbeddingLoss(margin=1.0, if_mean_shift=False)
 if config.mode == 0:
     # Just using points for training
     model = PrimitivesEmbeddingDGCNGn(
-                            embedding=True,
-                            emb_size=128,
-                            primitives=True,
-                            num_primitives=10,
-                            loss_function=Loss.triplet_loss,
-                            mode=config.mode,
-                            num_channels=3,
-                        )
+        embedding=True,
+        emb_size=128,
+        primitives=True,
+        num_primitives=10,
+        loss_function=Loss.triplet_loss,
+        mode=config.mode,
+        num_channels=3,
+    )
 elif config.mode == 5:
     # Using points and normals for training
     model = PrimitivesEmbeddingDGCNGn(
-                            embedding=True,
-                            emb_size=128,
-                            primitives=True,
-                            num_primitives=10,
-                            loss_function=Loss.triplet_loss,
-                            mode=config.mode,
-                            num_channels=6,
-                        )    
+        embedding=True,
+        emb_size=128,
+        primitives=True,
+        num_primitives=10,
+        loss_function=Loss.triplet_loss,
+        mode=config.mode,
+        num_channels=6,
+    )
 
 model_bkp = model
 model_bkp.l_permute = np.arange(7000)
@@ -203,7 +194,7 @@ for e in range(config.epochs):
             p_losses += p_loss.data.cpu().numpy() / num_iter
             ious += iou / num_iter
             embed_losses += embed_loss.data.cpu().numpy() / num_iter
-            
+
         optimizer.step()
         train_iou.append(ious)
         train_losses.append(losses)
@@ -221,7 +212,6 @@ for e in range(config.epochs):
             embed_losses,
             train_b_id + e * (config.num_train // config.batch_size),
         )
-        
 
     test_emb_losses = []
     test_prim_losses = []

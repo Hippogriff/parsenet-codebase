@@ -1,11 +1,10 @@
-import torch
 import numpy as np
+import torch
+import torch.nn.functional as F
 from torch.autograd.variable import Variable
 from torch.nn import MSELoss
-import torch.nn.functional as F
-from torch.nn.functional import normalize
-from src.utils import chamfer_distance, chamfer_distance_one_side
 
+from src.utils import chamfer_distance, chamfer_distance_one_side
 
 mse = MSELoss(size_average=True, reduce=True)
 
@@ -86,7 +85,7 @@ def control_points_permute_reg_loss(output, control_points, grid_size):
     # TODO Check whether this permutation is good or not.
     output = output.view(batch_size, grid_size, grid_size, 3)
     output = torch.unsqueeze(output, 1)
-    
+
     # N x 8 x grid_size x grid_size x 3
     control_points = all_permutations(control_points)
     diff = (output - control_points) ** 2
@@ -109,7 +108,7 @@ def control_points_permute_closed_reg_loss(output, control_points, grid_size_x, 
     batch_size = output.shape[0]
     output = output.view(batch_size, grid_size_x, grid_size_y, 3)
     output = torch.unsqueeze(output, 1)
-    
+
     # N x 8 x grid_size x grid_size x 3
     rhos = []
     for i in range(grid_size_y):
@@ -156,7 +155,7 @@ def spline_reconstruction_loss_one_sided(nu, nv, output, points, config, side=1)
     c_size_v = output.shape[2]
     grid_size_u = nu.shape[0]
     grid_size_v = nv.shape[0]
-    
+
     output = output.view(config.batch_size, config.grid_size, config.grid_size, 3)
     points = points.permute(0, 2, 1)
     for b in range(config.batch_size):
@@ -257,9 +256,9 @@ def basis_function_one(degree, knot_vector, span, knot):
     """
     # Special case at boundaries
     if (
-        (span == 0 and knot == knot_vector[0])
-        or (span == len(knot_vector) - degree - 2)
-        and knot == knot_vector[len(knot_vector) - 1]
+            (span == 0 and knot == knot_vector[0])
+            or (span == len(knot_vector) - degree - 2)
+            and knot == knot_vector[len(knot_vector) - 1]
     ):
         return 1.0
 
@@ -280,7 +279,7 @@ def basis_function_one(degree, knot_vector, span, knot):
         saved = 0.0
         if N[0] != 0.0:
             saved = ((knot - knot_vector[span]) * N[0]) / (
-                knot_vector[span + k] - knot_vector[span]
+                    knot_vector[span + k] - knot_vector[span]
             )
 
         for j in range(0, degree - k + 1):

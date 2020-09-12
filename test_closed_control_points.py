@@ -1,50 +1,33 @@
-import open3d
-import sys
-import logging
-import json
 import os
-from shutil import copyfile
+import sys
+
 import numpy as np
-import torch.optim as optim
-from src.curve_utils import fit_surface
-from src.utils import visualize_point_cloud
-from src.test_utils import test
-from src.loss import control_points_permute_reg_loss
+import open3d
 import torch.utils.data
+from open3d import *
 from torch.autograd import Variable
-from torch.optim.lr_scheduler import ReduceLROnPlateau
-from src.dataset import DataSetControlPointsPoisson
-from src.model import DGCNNControlPoints
-from matplotlib import pyplot as plt
-from src.utils import visualize_uv_maps, visualize_fitted_surface
-from src.utils import chamfer_distance
-from read_config import Config
-from src.utils import fit_surface_sample_points
-from src.dataset import generator_iter
 from torch.utils.data import DataLoader
-from src.utils import chamfer_distance
+
+from read_config import Config
+from src.VisUtils import tessalate_points
+from src.dataset import DataSetControlPointsPoisson
+from src.dataset import generator_iter
+from src.fitting_utils import sample_points_from_control_points_
+from src.fitting_utils import up_sample_points_torch_in_range
+from src.loss import control_points_permute_reg_loss
+from src.loss import laplacian_loss
 from src.loss import (
-    basis_function_one,
     uniform_knot_bspline,
     spline_reconstruction_loss,
 )
-from src.fitting_utils import sample_points_from_control_points_
-from src.utils import chamfer_distance
-from src.VisUtils import tessalate_points
-import open3d
-from open3d import *
-import json
-from src.loss import laplacian_loss
-from src.VisUtils import grid_meshes_lists_visulation
-from src.fitting_utils import up_sample_points_torch_in_range
+from src.model import DGCNNControlPoints
 from src.primitive_forward import optimize_close_spline
 from src.utils import chamfer_distance_single_shape
-from src.VisUtils import grid_meshes_lists_visulation
 
 config = Config(sys.argv[1])
 
 userspace = ".."
-print (config.mode)
+print(config.mode)
 control_decoder = DGCNNControlPoints(20, num_points=10, mode=config.mode)
 control_decoder = torch.nn.DataParallel(control_decoder)
 control_decoder.cuda()
@@ -146,7 +129,7 @@ for val_b_id in range(config.num_test // config.batch_size - 1):
             output[b] = output[b] * s.reshape(1, 3) / torch.max(s)
             points[b] = points[b] * s.reshape(3, 1) / torch.max(s)
             control_points[b] = (
-                control_points[b] * s.reshape(1, 1, 3) / torch.max(s)
+                    control_points[b] * s.reshape(1, 1, 3) / torch.max(s)
             )
 
     # Chamfer Distance loss, between predicted and GT surfaces
@@ -176,7 +159,7 @@ for val_b_id in range(config.num_test // config.batch_size - 1):
     test_cd.append(cd.data.cpu().numpy())
     test_lap.append(laplac_loss.data.cpu().numpy())
 
-    print (val_b_id, cd.item())
+    print(val_b_id, cd.item())
     if visualize:
         pred_meshes = []
         gt_meshes = []
@@ -187,8 +170,8 @@ for val_b_id in range(config.num_test // config.batch_size - 1):
             temp = np.concatenate([temp, temp[0:1]], 0)
             pred_mesh = tessalate_points(temp, 31, 30)
             pred_mesh.paint_uniform_color([1, 0.0, 0])
-            
-            gt_points = sample_points_from_control_points_(nu, nv, control_points[b:b+1], 1).data.cpu().numpy()
+
+            gt_points = sample_points_from_control_points_(nu, nv, control_points[b:b + 1], 1).data.cpu().numpy()
             temp = gt_points[b].reshape((30, 30, 3))
             gt_points = np.concatenate([temp, temp[0:1]], 0)
             gt_mesh = tessalate_points(gt_points, 31, 30)

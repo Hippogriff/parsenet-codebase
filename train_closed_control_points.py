@@ -1,40 +1,27 @@
-import open3d
-import sys
-import logging
 import json
-import os
+import logging
+import sys
 from shutil import copyfile
+
 import numpy as np
 import torch.optim as optim
-from src.curve_utils import fit_surface
-from src.utils import visualize_point_cloud
-from src.test_utils import test
-from src.loss import control_points_permute_closed_reg_loss
 import torch.utils.data
+from tensorboard_logger import configure, log_value
 from torch.autograd import Variable
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from src.dataset import DataSetControlPointsPoisson
-from matplotlib import pyplot as plt
-from src.utils import visualize_uv_maps, visualize_fitted_surface
-from src.utils import chamfer_distance
-from read_config import Config
-from src.model import DGCNNControlPoints
-from src.utils import fit_surface_sample_points
-from src.dataset import generator_iter
 from torch.utils.data import DataLoader
-from src.utils import chamfer_distance
+
+from read_config import Config
+from src.dataset import DataSetControlPointsPoisson
+from src.dataset import generator_iter
+from src.loss import control_points_permute_closed_reg_loss
+from src.loss import laplacian_loss
 from src.loss import (
-    basis_function_one,
     uniform_knot_bspline,
-    spline_reconstruction_loss,
     spline_reconstruction_loss_one_sided,
 )
-from src.utils import chamfer_distance
-from src.loss import laplacian_loss
-from tensorboard_logger import configure, log_value
-from src.fitting_utils import up_sample_points_torch_in_range
+from src.model import DGCNNControlPoints
 from src.utils import rescale_input_outputs
-
 
 np.set_printoptions(precision=4)
 
@@ -67,7 +54,7 @@ logger.addHandler(file_handler)
 logger.addHandler(handler)
 
 with open(
-    "logs/configs/{}_config.json".format(model_name), "w"
+        "logs/configs/{}_config.json".format(model_name), "w"
 ) as file:
     json.dump(vars(config), file)
 source_file = __file__
@@ -164,7 +151,8 @@ for e in range(config.epochs):
         output = control_decoder(points[:, :, 0:rand_num_points])
         if anisotropic:
             # rescale all tensors to original dimensions for evaluation
-            scales, output, points, control_points = rescale_input_outputs(scales, output, points, control_points, config.batch_size)
+            scales, output, points, control_points = rescale_input_outputs(scales, output, points, control_points,
+                                                                           config.batch_size)
 
         # Chamfer Distance loss, between predicted and GT surfaces
         cd, reconstructed_points = spline_reconstruction_loss_one_sided(
@@ -182,7 +170,7 @@ for e in range(config.epochs):
             dist_type="l2",
         )
 
-        loss = l_reg * config.loss_weight + (cd) * (1 - config.loss_weight) #laplac_loss
+        loss = l_reg * config.loss_weight + (cd) * (1 - config.loss_weight)  # laplac_loss
         loss.backward()
         train_cd.append(cd.data.cpu().numpy())
         train_reg.append(l_reg.data.cpu().numpy())
@@ -210,7 +198,6 @@ for e in range(config.epochs):
             end="",
         )
 
-
     distances = []
     test_reg = []
     test_cd = []
@@ -232,7 +219,8 @@ for e in range(config.epochs):
             output = control_decoder(points[:, :, 0:config.num_points])
             if anisotropic:
                 # rescale all tensors to original dimensions for evaluation
-                scales, output, points, control_points = rescale_input_outputs(scales, output, points, control_points, config.batch_size)
+                scales, output, points, control_points = rescale_input_outputs(scales, output, points, control_points,
+                                                                               config.batch_size)
 
         # Chamfer Distance loss, between predicted and GT surfaces
         cd, reconstructed_points = spline_reconstruction_loss_one_sided(
@@ -248,7 +236,7 @@ for e in range(config.epochs):
         )
 
         loss = l_reg * config.loss_weight + (cd + laplac_loss) * (
-            1 - config.loss_weight
+                1 - config.loss_weight
         )
         test_reg.append(l_reg.data.cpu().numpy())
         test_cd.append(cd.data.cpu().numpy())

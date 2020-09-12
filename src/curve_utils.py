@@ -2,11 +2,11 @@
 This script contains utility function to draw surfaces
 """
 
-from geomdl import BSpline, NURBS
-from geomdl.visualization import VisMPL
-from geomdl import multi
-from geomdl import fitting
 import numpy as np
+from geomdl import BSpline, NURBS
+from geomdl import fitting
+from geomdl import multi
+from geomdl.visualization import VisMPL
 from matplotlib import cm
 
 
@@ -49,9 +49,9 @@ class DrawSurfs:
         u_max, v_max = np.max(parameters, 0)
         u, v = np.meshgrid(np.arange(u_min, u_max, 0.1), np.arange(v_min, v_max, 0.1))
         plane = (
-            l
-            + np.expand_dims(u.flatten(), 1) * x.reshape((1, 3))
-            + np.expand_dims(v.flatten(), 1) * y.reshape((1, 3))
+                l
+                + np.expand_dims(u.flatten(), 1) * x.reshape((1, 3))
+                + np.expand_dims(v.flatten(), 1) * y.reshape((1, 3))
         )
         return plane
 
@@ -103,9 +103,9 @@ class DrawSurfs:
         v = np.expand_dims(v.flatten(), 1)
 
         cone = (
-            l
-            + (r + v * np.sin(a)) * (np.cos(u) * x + np.sin(u) * y)
-            + v * np.cos(a) * z
+                l
+                + (r + v * np.sin(a)) * (np.cos(u) * x + np.sin(u) * y)
+                + v * np.cos(a) * z
         )
         return cone
 
@@ -124,9 +124,9 @@ class DrawSurfs:
         u = np.expand_dims(u.flatten(), 1)
         v = np.expand_dims(v.flatten(), 1)
         cone = (
-            l
-            + (r_max + r_min * np.cos(v)) * (np.cos(u) * x + np.sin(u) * y)
-            + (r_min) * np.sin(v) * z
+                l
+                + (r_max + r_min * np.cos(v)) * (np.cos(u) * x + np.sin(u) * y)
+                + (r_min) * np.sin(v) * z
         )
         return cone
 
@@ -143,7 +143,7 @@ class DrawSurfs:
             surf = NURBS.Surface()
             control_points = np.array(spline["poles"])
             size_u, size_v = control_points.shape[0], control_points.shape[1]
-            
+
             # Set degrees
             surf.degree_u = spline["u_degree"]
             surf.degree_v = spline["v_degree"]

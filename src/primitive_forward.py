@@ -1,40 +1,23 @@
-import numpy as np
-from src.utils import visualize_point_cloud
-import torch
-from torch.autograd.gradcheck import gradcheck
-from src.curve_utils import DrawSurfs
 from open3d import *
-from src.fitting_utils import customsvd
-from src.curve_utils import DrawSurfs
-import open3d
 import numpy as np
 import torch
-from src.VisUtils import tessalate_points
-from src.utils import draw_geometries
-from torch.autograd.variable import Variable
-from src.fitting_utils import LeastSquares
-from src.fitting_utils import standardize_points_torch, sample_points_from_control_points_, visualize_weighted_points
-from src.fitting_utils import visualize_weighted_points
-from src.fitting_utils import up_sample_points_torch, up_sample_points_in_range, up_sample_points_torch_in_range
-from src.guard import guard_sqrt
-
-from src.loss import (
-    basis_function_one,
-    uniform_knot_bspline,
-    spline_reconstruction_loss,
-)
-from src.utils import visualize_point_cloud
 from geomdl import fitting as geomdl_fitting
 from lapsolver import solve_dense
-from src.curve_utils import DrawSurfs
 from open3d import *
-import copy
-from src.fitting_utils import up_sample_points_in_range
-from src.utils import rotation_matrix_a_to_b, get_rotation_matrix
+from open3d import *
+
+from src.VisUtils import tessalate_points
 from src.approximation import fit_bezier_surface_fit_kronecker, BSpline, uniform_knot_bspline_
 from src.curve_utils import DrawSurfs
+from src.fitting_utils import LeastSquares
+from src.fitting_utils import customsvd
 from src.fitting_utils import remove_outliers
-
+from src.fitting_utils import standardize_points_torch, sample_points_from_control_points_
+from src.fitting_utils import up_sample_points_in_range
+from src.fitting_utils import up_sample_points_torch_in_range
+from src.guard import guard_sqrt
+from src.utils import draw_geometries
+from src.utils import rotation_matrix_a_to_b, get_rotation_matrix
 
 draw_surf = DrawSurfs()
 EPS = np.finfo(np.float32).eps
@@ -45,7 +28,7 @@ regular_parameters = draw_surf.regular_parameterization(30, 30)
 
 
 def print_norm(x):
-    print ("printing norm 2", torch.norm(x))
+    print("printing norm 2", torch.norm(x))
 
 
 def forward_pass_open_spline(
@@ -55,11 +38,11 @@ def forward_pass_open_spline(
     nv = nv.cuda(input_points_.get_device())
     with torch.no_grad():
         points_, scales, means, RS = standardize_points_torch(input_points_, weights)
-    
+
     batch_size = points_.shape[0]
     if viz:
         reg_points = np.copy(points_[:, 0:400])
-    
+
     # points = Variable(torch.from_numpy(points_.astype(np.float32))).cuda()
     points = points_.permute(0, 2, 1)
     output = control_decoder(points, weights.T)
@@ -108,9 +91,9 @@ def initialize_open_spline_model(modelname, mode):
     control_decoder_ = DGCNNControlPoints(20, num_points=10, mode=mode)
     control_decoder = torch.nn.DataParallel(control_decoder_)
     control_decoder.load_state_dict(
-    torch.load(modelname)
+        torch.load(modelname)
     )
-    
+
     if torch.cuda.device_count() > 1:
         control_decoder_.cuda(1)
     else:
@@ -128,16 +111,16 @@ def optimize_close_spline(reconstructed_points, input_points_):
     out = out.data.cpu().numpy()
     out = out.reshape((31, 30, 3))
     out = out[np.arange(0, 31, 1.5).astype(np.int32)][
-        :, np.arange(0, 30, 1.5).astype(np.int32).tolist()
-    ]
+          :, np.arange(0, 30, 1.5).astype(np.int32).tolist()
+          ]
     out = out.reshape((20 * 21, 3))
-    
+
     input = input_points_[0]
     N = input.shape[0]
     input = up_sample_points_torch_in_range(input, 2000, 2100)
     # L = np.random.choice(np.arange(N), 30 * 31, replace=False)
     input = input.data.cpu().numpy()
-    
+
     dist = np.linalg.norm(
         np.expand_dims(out, 1) - np.expand_dims(input, 0), axis=2
     )
@@ -158,7 +141,7 @@ def optimize_close_spline(reconstructed_points, input_points_):
         degree_v,
         ctrlpts_size_u=10,
         ctrlpts_size_v=10,
-        )
+    )
 
     regular_parameters = draw_surf.regular_parameterization(31, 30)
     optimized_points = surf.evaluate_list(regular_parameters)
@@ -184,14 +167,14 @@ def optimize_close_spline_kronecker(reconstructed_points,
                                input_points_[0].data.cpu().numpy(), viz=False)
         reconstructed_points = torch.from_numpy(np.array(new_mesh.vertices)).cuda()
         reconstructed_points = torch.unsqueeze(reconstructed_points, 0)
-    
+
     bspline = BSpline()
     N = input_points_.shape[1]
     control_points = control_points[0].data.cpu().numpy()
 
     new_cp_size = new_cp_size
     new_degree = new_degree
-    
+
     # Note that boundary parameterization is necessary for the fitting
     parameters = draw_surf.boundary_parameterization(30)
     parameters = np.concatenate([np.random.random((1600 - parameters.shape[0], 2)), parameters], 0)
@@ -202,10 +185,10 @@ def optimize_close_spline_kronecker(reconstructed_points,
                                                 np.array(ku),
                                                 np.array(kv),
                                                 3, 3)
-    
+
     # these are randomly sampled points on the surface of the predicted spline
     points = np.array(spline_surf.evaluate_list(parameters))
-    
+
     input = up_sample_points_torch_in_range(input_points_[0], 2000, 2100)
     input = input.data.cpu().numpy()
 
@@ -215,9 +198,9 @@ def optimize_close_spline_kronecker(reconstructed_points,
 
     rids, cids = solve_dense(dist)
     matched = input[cids]
-    
+
     _, _, ku, kv = uniform_knot_bspline_(new_cp_size, new_cp_size, new_degree, new_degree, 2)
-    
+
     NU = []
     NV = []
     for index in range(parameters.shape[0]):
@@ -243,7 +226,8 @@ def optimize_close_spline_kronecker(reconstructed_points,
     return optimized_points
 
 
-def optimize_open_spline_kronecker(reconstructed_points, input_points_, control_points, new_cp_size=10, new_degree=2, deform=False):
+def optimize_open_spline_kronecker(reconstructed_points, input_points_, control_points, new_cp_size=10, new_degree=2,
+                                   deform=False):
     """
     Assuming that initial point cloud size is greater than or equal to
     400.
@@ -261,7 +245,7 @@ def optimize_open_spline_kronecker(reconstructed_points, input_points_, control_
 
     new_cp_size = new_cp_size
     new_degree = new_degree
-    
+
     # Note that boundary parameterization is necessary for the fitting
     # otherwise you 
     parameters = draw_surf.boundary_parameterization(20)
@@ -272,12 +256,12 @@ def optimize_open_spline_kronecker(reconstructed_points, input_points_, control_
                                                 np.array(ku),
                                                 np.array(kv),
                                                 3, 3)
-    
+
     # these are randomly sampled points on the surface of the predicted spline
     points = np.array(spline_surf.evaluate_list(parameters))
-    
+
     input = up_sample_points_torch_in_range(input_points_[0], 1600, 2000)
-    
+
     L = np.random.choice(np.arange(input.shape[0]), 1600, replace=False)
     input = input[L].data.cpu().numpy()
 
@@ -287,9 +271,9 @@ def optimize_open_spline_kronecker(reconstructed_points, input_points_, control_
 
     rids, cids = solve_dense(dist)
     matched = input[cids]
-    
+
     _, _, ku, kv = uniform_knot_bspline_(new_cp_size, new_cp_size, new_degree, new_degree, 2)
-    
+
     NU = []
     NV = []
     for index in range(parameters.shape[0]):
@@ -326,7 +310,7 @@ def optimize_open_spline(reconstructed_points, input_points_):
     N = input.shape[0]
     input = up_sample_points_torch_in_range(input, 1200, 1300)
     input = input.data.cpu().numpy()
-    
+
     dist = np.linalg.norm(
         np.expand_dims(out, 1) - np.expand_dims(input, 0), axis=2
     )
@@ -350,7 +334,7 @@ def optimize_open_spline(reconstructed_points, input_points_):
             ctrlpts_size_v=10,
         )
     except:
-        print ("open spline, smaller than 400")
+        print("open spline, smaller than 400")
         return reconstructed_points
 
     regular_parameters = draw_surf.regular_parameterization(30, 30)
@@ -374,8 +358,8 @@ def forward_closed_splines(input_points_, control_decoder, nu, nv, viz=False, we
     # points = Variable(torch.from_numpy(points_.astype(np.float32))).cuda()
     points = points_.permute(0, 2, 1)
     output = control_decoder(points, weights.T)
-    
-     # Chamfer Distance loss, between predicted and GT surfaces
+
+    # Chamfer Distance loss, between predicted and GT surfaces
     reconstructed_points = sample_points_from_control_points_(
         nu, nv, output, batch_size
     )
@@ -395,10 +379,10 @@ def forward_closed_splines(input_points_, control_decoder, nu, nv, viz=False, we
         closed_control_points.append(temp)
 
         temp = (
-            reconstructed_points[b].clone() * scales[b].reshape(1, 3)
+                reconstructed_points[b].clone() * scales[b].reshape(1, 3)
         )
         temp = torch.inverse(RS[b]) @ temp.T
-        temp = torch.transpose(temp, 1, 0) +  means[b]
+        temp = torch.transpose(temp, 1, 0) + means[b]
         temp = temp.reshape((30, 30, 3))
         temp = torch.cat([temp, temp[0:1]], 0)
         closed_reconst.append(temp)
@@ -421,7 +405,7 @@ def initialize_closed_spline_model(modelname, mode):
     control_decoder.load_state_dict(
         torch.load(modelname)
     )
-    
+
     if torch.cuda.device_count() > 1:
         control_decoder_.cuda(1)
     else:
@@ -482,7 +466,7 @@ class Fit:
 
         param = 1 - 2 * np.array(regular_parameters)
         param = param * 0.75
-        
+
         gridded_points = param[:, 0:1] * x + param[:, 1:2] * y
         gridded_points = gridded_points + mean
         return gridded_points
@@ -523,7 +507,7 @@ class Fit:
         rel_unit_vector = (p - c) / np.linalg.norm(p - c)
         rel_unit_vector_min = rel_unit_vector * (proj_min) / (np.cos(theta) + EPS)
         rel_unit_vector_max = rel_unit_vector * (proj_max) / (np.cos(theta) + EPS)
-        
+
         for j in range(100):
             # p_ = (p - c) * (0.01) * j
             p_ = rel_unit_vector_min + (rel_unit_vector_max - rel_unit_vector_min) * 0.01 * j
@@ -536,7 +520,7 @@ class Fit:
                 rotate_point = R @ p_
                 d_points.append(rotate_point + c)
                 d_normals.append(rotate_point - np.linalg.norm(rotate_point) / np.cos(theta) * a / norm_a)
-                
+
             # repeat the points to close the circle
             d_points.append(d_points[0])
             d_normals.append(d_normals[0])
@@ -555,7 +539,6 @@ class Fit:
         # project points on the axis, remove points that are beyond the limits.
         return points[indices], normals[indices]
 
-    
     def sample_cone(self, c, a, theta):
         norm_a = np.linalg.norm(a)
         a = a / norm_a
@@ -590,7 +573,7 @@ class Fit:
             # repeat the points to close the circle
             d_points.append(d_points[0])
             d_normals.append(d_normals[0])
-            
+
             points += d_points
             normals += d_normals
 
@@ -603,19 +586,19 @@ class Fit:
         points = points + c.reshape((1, 3))
         return points, normals
 
-    def sample_sphere(self, radius, center, N = 1000):
-        
-        theta = 1 - 2 *np.random.random(N) * 3.14
+    def sample_sphere(self, radius, center, N=1000):
+
+        theta = 1 - 2 * np.random.random(N) * 3.14
         phi = 1 - 2 * np.random.random(N) * 3.14
         points = np.stack([np.cos(theta) * np.cos(phi), np.cos(theta) * np.sin(phi),
                            np.sin(theta)], 1)
         normals = points
         points = points * radius
-        
+
         points = points + center
         return points, normals
 
-    def sample_sphere(self, radius, center, N = 1000):
+    def sample_sphere(self, radius, center, N=1000):
         center = center.reshape((1, 3))
         d_theta = 100
         theta = np.arange(d_theta - 1) * 3.14 * 2 / d_theta
@@ -632,7 +615,7 @@ class Fit:
         normals = points / np.linalg.norm(points, axis=1, keepdims=True)
         points = points + center
         return points, normals
-    
+
     def sample_cylinder_trim(self, radius, center, axis, points, N=1000):
         """
         :param center: center of size 1 x 3
@@ -671,7 +654,8 @@ class Fit:
         try:
             points = np.concatenate([circle, height], 1)
         except:
-            import ipdb; ipdb.set_trace()
+            import ipdb;
+            ipdb.set_trace()
         points = R @ points.T
         points = points.T + center
         normals = (R @ normals.T).T
@@ -735,8 +719,8 @@ class Fit:
         np_weighted_X = weighted_X.data.cpu().numpy()
         if np.linalg.cond(np_weighted_X) > 1e5:
             if show_warning:
-                print ("condition number is large in plane!", np.sum(np_weighted_X))
-                print (torch.sum(points), torch.sum(weights))
+                print("condition number is large in plane!", np.sum(np_weighted_X))
+                print(torch.sum(points), torch.sum(weights))
 
         U, s, V = customsvd(weighted_X)
         a = V[:, -1]
@@ -756,7 +740,7 @@ class Fit:
         A = weights * A
         Y = weights * Y
         center = -np.linalg.lstsq(A, Y)[0].reshape((1, dimension))
-        radius = np.sqrt(np.sum(weights[:, 0] * np.sum((points - center)**2, 1)) / sum_weights)
+        radius = np.sqrt(np.sum(weights[:, 0] * np.sum((points - center) ** 2, 1)) / sum_weights)
         return center, radius
 
     def fit_sphere_torch(self, points, normals, weights, ids=0, show_warning=False):
@@ -776,10 +760,10 @@ class Fit:
 
         if np.linalg.cond(A.data.cpu().numpy()) > 1e8:
             if show_warning:
-                print ("condition number is large in sphere!")
+                print("condition number is large in sphere!")
 
         center = -self.lstsq(A, Y, 0.01).reshape((1, 3))
-        radius_square = torch.sum(weights[:, 0] * torch.sum((points - center)**2, 1)) / sum_weights
+        radius_square = torch.sum(weights[:, 0] * torch.sum((points - center) ** 2, 1)) / sum_weights
         radius_square = torch.clamp(radius_square, min=1e-3)
         radius = guard_sqrt(radius_square)
         return center, radius
@@ -796,16 +780,16 @@ class Fit:
         prj_circle = points - ((points @ a).T * a).T
         center, radius = self.fit_sphere_numpy(prj_circle, normals, weights)
         return a, center, radius
-    
+
     def fit_cylinder_torch(self, points, normals, weights, ids=0, show_warning=False):
         # compute
         # U, s, V = torch.svd(weights * normals)
         weighted_normals = weights * normals
-        
+
         if np.linalg.cond(weighted_normals.data.cpu().numpy()) > 1e5:
             if show_warning:
-                print ("condition number is large in cylinder")
-                print (torch.sum(normals).item(), torch.sum(points).item(), torch.sum(weights).item())
+                print("condition number is large in cylinder")
+                print(torch.sum(normals).item(), torch.sum(points).item(), torch.sum(weights).item())
 
         U, s, V = customsvd(weighted_normals)
         a = V[:, -1]
@@ -824,7 +808,7 @@ class Fit:
     def fit_cone_torch(self, points, normals, weights, ids=0, show_warning=False):
         """ Need to incorporate the cholesky decomposition based
         least square fitting because it is stable and faster."""
-        
+
         N = points.shape[0]
         A = weights * normals
         Y = torch.sum(normals * points, 1).reshape((N, 1))
@@ -833,10 +817,11 @@ class Fit:
         # if condition number is too large, return a very zero cone.
         if np.linalg.cond(A.data.cpu().numpy()) > 1e5:
             if show_warning:
-                print ("condition number is large, cone")
-                print (torch.sum(normals).item(), torch.sum(points).item(), torch.sum(weights).item())
-            return torch.zeros((1, 3)).cuda(points.get_device()), torch.Tensor([[1.0, 0.0, 0.0]]).cuda(points.get_device()), torch.zeros(1).cuda(points.get_device())
-        
+                print("condition number is large, cone")
+                print(torch.sum(normals).item(), torch.sum(points).item(), torch.sum(weights).item())
+            return torch.zeros((1, 3)).cuda(points.get_device()), torch.Tensor([[1.0, 0.0, 0.0]]).cuda(
+                points.get_device()), torch.zeros(1).cuda(points.get_device())
+
         c = self.lstsq(A, Y, lamb=1e-3)
 
         a, _ = self.fit_plane_torch(normals, None, weights)
@@ -844,7 +829,7 @@ class Fit:
             # we want normals to be pointing outside and axis to
             # be pointing inside the cone.
             a = - 1 * a
-        
+
         diff = points - c.transpose(1, 0)
         diff = torch.nn.functional.normalize(diff, p=2, dim=1)
         diff = diff @ a.transpose(1, 0)
@@ -872,15 +857,14 @@ class Fit:
         w = w / (np.linalg.norm(w) + EPS)
         F = np.stack([u, v, w], 1)
         G = np.array([[cos, -sin, 0],
-                  [sin, cos, 0],
-                  [0, 0, 1]])
+                      [sin, cos, 0],
+                      [0, 0, 1]])
         # B = R @ A
         try:
             R = F @ G @ np.linalg.inv(F)
         except:
             R = np.eye(3, dtype=np.float32)
         return R
-
 
     def reg_lstsq(self, A, y, lamb=0):
         n_col = A.shape[1]
@@ -903,7 +887,7 @@ def fit_one_shape(data, fitter):
     reconstructed_shape = []
     fitter.fitting.parameters = {}
     gt_points = {}
-    
+
     for part_index, d in enumerate(data):
         points, normals, labels, _ = d
         weights = np.ones((points.shape[0], 1), dtype=np.float32)
@@ -938,7 +922,8 @@ def fit_one_shape(data, fitter):
     return gt_points, reconstructed_shape
 
 
-def fit_one_shape_torch(data, fitter, weights, bw, eval=False, sample_points=False, if_optimize=False, if_visualize=False):
+def fit_one_shape_torch(data, fitter, weights, bw, eval=False, sample_points=False, if_optimize=False,
+                        if_visualize=False):
     """
     Fits primitives/splines to 
     """
@@ -947,7 +932,7 @@ def fit_one_shape_torch(data, fitter, weights, bw, eval=False, sample_points=Fal
     fitter.fitting.parameters = {}
     gt_points = {}
     spline_count = 0
-    
+
     for _, d in enumerate(data):
         points, normals, labels, gpoints, segment_indices, part_index = d
         # NOTE: part index and label index are different when one of the predicted
@@ -963,7 +948,7 @@ def fit_one_shape_torch(data, fitter, weights, bw, eval=False, sample_points=Fal
 
         else:
             weight = weights[segment_indices, part_index:part_index + 1] + EPS
-        
+
         if not eval:
             # in the training mode, only process upto 5 splines
             # because of the memory constraints.
@@ -990,7 +975,7 @@ def fit_one_shape_torch(data, fitter, weights, bw, eval=False, sample_points=Fal
 
         if labels in [0, 9, 6, 7]:
             # closed bspline surface
-            
+
             if points.shape[0] < 100:
                 # drop smaller patches
                 reconstructed_shape.append(None)
@@ -1001,30 +986,36 @@ def fit_one_shape_torch(data, fitter, weights, bw, eval=False, sample_points=Fal
             if eval:
                 # since this is a eval mode, weights are all one.
                 Z = points.shape[0]
-                points = torch.from_numpy(remove_outliers(points.data.cpu().numpy()).astype(np.float32)).cuda(points.get_device())
+                points = torch.from_numpy(remove_outliers(points.data.cpu().numpy()).astype(np.float32)).cuda(
+                    points.get_device())
                 weight = weight[0:points.shape[0]]
 
                 # Note: we can apply poisson disk sampling to remove points.
                 # Rarely results in removal of points.
                 points, weight = up_sample_points_in_range(points, weight, 1400, 1800)
-                
-            recon_points = fitter.forward_pass_closed_spline(points, weights=weight, ids=label_index, if_optimize=if_optimize and (Z>200))
+
+            recon_points = fitter.forward_pass_closed_spline(points, weights=weight, ids=label_index,
+                                                             if_optimize=if_optimize and (Z > 200))
 
         elif labels == 1:
             # Fit plane
-            recon_points = fitter.forward_pass_plane(points, normals, weight, ids=label_index, sample_points=sample_points)
+            recon_points = fitter.forward_pass_plane(points, normals, weight, ids=label_index,
+                                                     sample_points=sample_points)
 
         elif labels == 3:
             # Cone
-            recon_points = fitter.forward_pass_cone(points, normals, weight, ids=label_index, sample_points=sample_points)
+            recon_points = fitter.forward_pass_cone(points, normals, weight, ids=label_index,
+                                                    sample_points=sample_points)
 
         elif labels == 4:
             # cylinder
-            recon_points = fitter.forward_pass_cylinder(points, normals, weight, ids=label_index, sample_points=sample_points)
+            recon_points = fitter.forward_pass_cylinder(points, normals, weight, ids=label_index,
+                                                        sample_points=sample_points)
 
         elif labels == 5:
             # "sphere"
-            recon_points = fitter.forward_pass_sphere(points, normals, weight, ids=label_index, sample_points=sample_points)
+            recon_points = fitter.forward_pass_sphere(points, normals, weight, ids=label_index,
+                                                      sample_points=sample_points)
 
         elif labels in [2, 8]:
             # open splines
@@ -1036,11 +1027,13 @@ def fit_one_shape_torch(data, fitter, weights, bw, eval=False, sample_points=Fal
             if eval:
                 # in the eval mode, make the number of points per segment to lie in a range that is suitable for the spline network.
                 # remove outliers. Only occur rarely, but worth removing them.
-                points = torch.from_numpy(remove_outliers(points.data.cpu().numpy()).astype(np.float32)).cuda(points.get_device())
+                points = torch.from_numpy(remove_outliers(points.data.cpu().numpy()).astype(np.float32)).cuda(
+                    points.get_device())
                 weight = weight[0:points.shape[0]]
                 points, weight = up_sample_points_in_range(points, weight, 1000, 1500)
-                
-            recon_points = fitter.forward_pass_open_spline(points, weights=weight, ids=label_index, if_optimize=if_optimize)
+
+            recon_points = fitter.forward_pass_open_spline(points, weights=weight, ids=label_index,
+                                                           if_optimize=if_optimize)
 
         if if_visualize:
             try:

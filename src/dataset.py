@@ -1,32 +1,28 @@
-import os
-import json
-import numpy as np
-from geomdl import exchange
-from src.curve_utils import DrawSurfs
-from random import shuffle
-import copy
-from torch.utils.data import Dataset
-from src.VisUtils import visualize_point_cloud
 import h5py
+import numpy as np
+from torch.utils.data import Dataset
+
 from src.augment_utils import Augment
+from src.curve_utils import DrawSurfs
 
 augment = Augment()
 
 EPS = np.finfo(np.float32).eps
 
-class generator_iter(Dataset):
-        """This is a helper function to be used in the parallel data loading using Pytorch
-        DataLoader class"""
 
-        def __init__(self, generator, train_size):
-            self.generator = generator
-            self.train_size = train_size
-            
-        def __len__(self):
-            return self.train_size
-                
-        def __getitem__(self, idx):
-            return next(self.generator)
+class generator_iter(Dataset):
+    """This is a helper function to be used in the parallel data loading using Pytorch
+    DataLoader class"""
+
+    def __init__(self, generator, train_size):
+        self.generator = generator
+        self.train_size = train_size
+
+    def __len__(self):
+        return self.train_size
+
+    def __getitem__(self, idx):
+        return next(self.generator)
 
 
 class DataSetControlPointsPoisson:
@@ -54,7 +50,7 @@ class DataSetControlPointsPoisson:
         with h5py.File(path, "r") as hf:
             points = np.array(hf.get(name="points")).astype(np.float32)
             control_points = np.array(hf.get(name="controlpoints")).astype(np.float32)
-       
+
         np.random.seed(0)
         List = np.arange(points.shape[0])
         np.random.shuffle(List)
@@ -77,9 +73,8 @@ class DataSetControlPointsPoisson:
             self.train_control_points = control_points[0:50000]
             self.val_control_points = control_points[50000:60000]
             self.test_control_points = control_points[60000:]
-        
-        self.draw = DrawSurfs()
 
+        self.draw = DrawSurfs()
 
     def rotation_matrix_a_to_b(self, A, B):
         """
@@ -96,8 +91,8 @@ class DataSetControlPointsPoisson:
         w = w / (np.linalg.norm(w) + EPS)
         F = np.stack([u, v, w], 1)
         G = np.array([[cos, -sin, 0],
-                  [sin, cos, 0],
-                  [0, 0, 1]])
+                      [sin, cos, 0],
+                      [0, 0, 1]])
 
         # B = R @ A
         try:
@@ -151,7 +146,7 @@ class DataSetControlPointsPoisson:
                     if anisotropic:
                         cntrl_point = cntrl_point / (std.reshape((1, 1, 3)) + EPS)
                     else:
-                        cntrl_point = cntrl_point /  std
+                        cntrl_point = cntrl_point / std
                     controlpoints.append(cntrl_point)
                 controlpoints = np.stack(controlpoints, 0)
                 Points = np.stack(Points, 0)
@@ -204,7 +199,7 @@ class DataSetControlPointsPoisson:
                     if anisotropic:
                         cntrl_point = cntrl_point / (std.reshape((1, 1, 3)) + EPS)
                     else:
-                        cntrl_point = cntrl_point /  std
+                        cntrl_point = cntrl_point / std
                     controlpoints.append(cntrl_point)
                 controlpoints = np.stack(controlpoints, 0)
                 Points = np.stack(Points, 0)
@@ -241,7 +236,7 @@ class DataSetControlPointsPoisson:
                 else:
                     std = np.max(np.max(points, 0) - np.min(points, 0))
                     # points = points / std
-                
+
                 scales.append(std)
                 Points.append(points)
                 cntrl_point = self.test_control_points[batch_id * self.batch_size + i]

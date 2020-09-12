@@ -3,13 +3,14 @@ This defines the distance from a geometric primitive. The idea is to
 sample points from the ground truth surface and find the distance of
 these points from the predicted point cloud.
 """
-import numpy as np
-from src.utils import chamfer_distance_single_shape
-import torch
-from src.fitting_utils import match
 import copy
-from src.guard import guard_sqrt, guard_exp
 
+import numpy as np
+import torch
+
+from src.fitting_utils import match
+from src.guard import guard_sqrt
+from src.utils import chamfer_distance_single_shape
 
 EPS = np.finfo(np.float32).eps
 
@@ -21,16 +22,16 @@ class ResidualLoss:
     formula for distance from geometric primitives, whereas for splines
     we use chamfer distance as an approximation.
     """
+
     def __init__(self, reduce=True, one_side=False):
         cp_distance = ComputePrimitiveDistance(reduce, one_side=one_side)
         self.routines = {"torus": cp_distance.distance_from_torus,
                          "sphere": cp_distance.distance_from_sphere,
-                        "cylinder": cp_distance.distance_from_cylinder,
-                        "cone": cp_distance.distance_from_cone,
-                        "plane": cp_distance.distance_from_plane,
+                         "cylinder": cp_distance.distance_from_cylinder,
+                         "cone": cp_distance.distance_from_cone,
+                         "plane": cp_distance.distance_from_plane,
                          "closed-spline": cp_distance.distance_from_bspline,
                          "open-spline": cp_distance.distance_from_bspline}
-        
 
     def residual_loss(self, Points, parameters, sqrt=False):
         distances = {}
@@ -63,9 +64,9 @@ class ComputePrimitiveDistance:
         axis, center, major_radius, minor_radius = params
         axis = axis.reshape((3, 1)) / torch.norm(axis, p=2)
         center = center.reshape((1, 3))
-        
+
         center2points = points - center
-        z_new = center2points @ axis # N x 1
+        z_new = center2points @ axis  # N x 1
 
         x_new = guard_sqrt(torch.sum(center2points ** 2, 1, keepdim=True) - z_new ** 2)  # N x 1
 
@@ -85,7 +86,6 @@ class ComputePrimitiveDistance:
             distance = torch.mean(distance)
         return distance
 
-
     def distance_from_plane(self, points, params, sqrt=False):
         """
         Distance of points from the plane
@@ -99,13 +99,14 @@ class ComputePrimitiveDistance:
         try:
             distance = torch.sum((points @ a - d) ** 2, 1)
         except:
-            import ipdb; ipdb.set_trace()
-            
+            import ipdb;
+            ipdb.set_trace()
+
         if sqrt:
             distance = guard_sqrt(distance)
         if self.reduce:
             distance = torch.mean(distance)
-            
+
         # Note that this is distance square
         return distance
 
@@ -120,7 +121,7 @@ class ComputePrimitiveDistance:
         distance = (torch.norm(points - center, p=2, dim=1) - radius) ** 2
         if sqrt:
             distance = guard_sqrt(distance)
-            
+
         if self.reduce:
             distance = torch.mean(distance)
         return distance
@@ -135,7 +136,7 @@ class ComputePrimitiveDistance:
         axis, center, radius = params
         center = center.reshape((1, 3))
         axis = axis.reshape((3, 1))
-        
+
         v = points - center
         prj = (v @ axis) ** 2
 
@@ -152,28 +153,30 @@ class ComputePrimitiveDistance:
             distance = guard_sqrt(distance)
 
         if torch.sum(torch.isnan(distance)):
-            import ipdb; ipdb.set_trace()
+            import ipdb;
+            ipdb.set_trace()
         if self.reduce:
             distance = torch.mean(distance)
 
         return distance
 
     def print_norm(self, x):
-        print ("printing norm 2", torch.norm(x))
+        print("printing norm 2", torch.norm(x))
 
     def distance_from_cone(self, points, params, sqrt=False):
         # axis: 3 x 1
         apex, axis, theta = params
         apex = apex.reshape((1, 3))
         axis = axis.reshape((3, 1))
-        
+
         N = points.shape[0]
 
         # pi_2 = torch.ones(N).cuda()
         try:
             v = points - apex + 1e-8
         except:
-            import ipdb; ipdb.set_trace()
+            import ipdb;
+            ipdb.set_trace()
         mod_v = torch.norm(v, dim=1, p=2)
         alpha_x = (v @ axis)[:, 0] / (mod_v + 1e-7)
         alpha_x = torch.clamp(alpha_x, min=-.999, max=0.999)
@@ -182,7 +185,7 @@ class ComputePrimitiveDistance:
         alpha = torch.acos(alpha_x)
 
         dist_angle = torch.clamp(torch.abs(alpha - theta), max=3.142 / 2.0)
-        
+
         distance = (mod_v * torch.sin(dist_angle)) ** 2
 
         if sqrt:
@@ -199,7 +202,8 @@ class ComputePrimitiveDistance:
         """
         # Need to define weighted distance.
         bspline_points = params[0][0]
-        return chamfer_distance_single_shape(bspline_points, points, one_side=self.one_side, sqrt=sqrt, reduce=self.reduce)
+        return chamfer_distance_single_shape(bspline_points, points, one_side=self.one_side, sqrt=sqrt,
+                                             reduce=self.reduce)
 
 
 class SaveParameters:
@@ -210,7 +214,7 @@ class SaveParameters:
         from src.primitive_forward import Fit
         self.fit = Fit()
         pass
-    
+
     def save(self, parameters, labels, cluster_ids, primitives, pred_primitives, path, if_save=True):
         """
         Save parameters predicted by an algorithm.
@@ -232,12 +236,12 @@ class SaveParameters:
                 center = v[2].data.cpu().numpy()
                 radius = v[3].item()
                 out_dict[k] = ["cylinder", axis, center, radius]
-                
+
             elif v[0] == "plane":
                 normals = v[1].data.cpu().numpy()
                 distance = v[2].item()
                 out_dict[k] = ["plane", normals, distance]
-                
+
             elif v[0] == "cone":
                 apex = v[1].data.cpu().numpy()
                 axis = v[2].data.cpu().numpy()
@@ -251,7 +255,7 @@ class SaveParameters:
             elif v[0] == "open-spline":
                 control_points = v[1].data.cpu().numpy()
                 out_dict[k] = ["open-spline", control_points]
-            
+
             elif v[0] == "sphere":
                 center = v[1].data.cpu().numpy()
                 radius = v[2].item()
@@ -267,7 +271,6 @@ class SaveParameters:
             np.save(path, out_dict)
         return out_put
 
-
     def load(self, data):
         """
         Loads the dataset in the format suitable for the evaluation.
@@ -277,13 +280,13 @@ class SaveParameters:
         labels = data["labels"]
         primitives = data["primitives"]
         primitives = copy.deepcopy(primitives)
-        
+
         try:
             cluster_ids = data["seg_id_RANSAC"]
         except:
             cluster_ids = data["seg_id"]
         parameters = data["primitive_dict"]
-        
+
         rows, cols, unique_target, unique_pred = match(labels, cluster_ids)
         gtpoints = {}
         for k in range(rows.shape[0]):
@@ -304,7 +307,6 @@ class SaveParameters:
                     parameters.pop(k)
         return parameters, gtpoints
 
-
     def load_parameters(self, data, bit_mapping=False):
         """
         Samples points from the surface for the purpose of visualization.
@@ -320,7 +322,8 @@ class SaveParameters:
         primitive_dict = data["primitive_dict"]
         for k, v in primitive_dict.items():
             if v[0] == "cylinder":
-                sampled_points, sampled_normals = self.fit.sample_cylinder_trim(v[3], v[2], v[1], points[cluster_ids == k])
+                sampled_points, sampled_normals = self.fit.sample_cylinder_trim(v[3], v[2], v[1],
+                                                                                points[cluster_ids == k])
                 input_points = points[cluster_ids == k]
                 if bit_mapping:
                     indices = self.bit_map(input_points, sampled_points)
@@ -328,7 +331,7 @@ class SaveParameters:
                     indices = np.arange(sampled_points.shape[0])
                 v.append(sampled_points[indices])
                 v.append(sampled_normals[indices])
-                
+
             if v[0] == "cone":
                 sampled_points, sampled_normals = self.fit.sample_cone_trim(v[1], v[2], v[3], points[cluster_ids == k])
                 # sampled_points, sampled_normals = self.fit.sample_cone(v[1], v[2], v[3])
@@ -343,14 +346,14 @@ class SaveParameters:
 
             if v[0] == "plane":
                 sampled_points = self.fit.sample_plane(v[2], v[1], np.mean(points[cluster_ids == k], 0))
-                
+
                 sampled_normals = np.concatenate([v[1].reshape((1, 3))] * sampled_points.shape[0], 0)
                 input_points = points[cluster_ids == k]
                 if bit_mapping:
                     indices = self.bit_map(input_points, sampled_points)
                 else:
                     indices = np.arange(sampled_points.shape[0])
-                
+
                 v.append(sampled_points[indices])
                 v.append(sampled_normals[indices])
 
@@ -361,7 +364,7 @@ class SaveParameters:
                     indices = self.bit_map(input_points, sampled_points)
                 else:
                     indices = np.arange(sampled_points.shape[0])
-                
+
                 v.append(sampled_points[indices])
                 v.append(sampled_normals[indices])
 
@@ -370,7 +373,7 @@ class SaveParameters:
                 sampled_points = self.fit.sample_torus(major_radius, minor_radius, center, axis)
                 v.append(sampled_points)
                 v.append(None)
-                
+
     def bit_map(self, input_points, output_points, thres=0.01):
         input_points = torch.from_numpy(input_points.astype(np.float32)).cuda()
         output_points = torch.from_numpy(output_points.astype(np.float32)).cuda()
@@ -378,6 +381,6 @@ class SaveParameters:
         try:
             indices = torch.min(dist, 1)[0] < thres
         except:
-            import ipdb; ipdb.set_trace()
+            import ipdb;
+            ipdb.set_trace()
         return indices.data.cpu().numpy()
-        

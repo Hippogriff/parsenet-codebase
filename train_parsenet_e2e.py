@@ -1,42 +1,29 @@
-import open3d
-import sys
-import logging
+import gc
 import json
+import logging
 import os
+import sys
+import time
+import traceback
 from shutil import copyfile
+
 import numpy as np
 import torch.optim as optim
 import torch.utils.data
-from torch.autograd import Variable
+from tensorboard_logger import configure, log_value
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from src.PointNet import PrimitivesEmbeddingDGCNGn
-from matplotlib import pyplot as plt
-from src.utils import visualize_uv_maps, visualize_fitted_surface
-from src.utils import chamfer_distance
-from read_config import Config
-from src.utils import fit_surface_sample_points
-from src.dataset_segments import Dataset
 from torch.utils.data import DataLoader
-from src.utils import chamfer_distance
-from src.loss import (
-    basis_function_one,
-    uniform_knot_bspline,
-    spline_reconstruction_loss,
-)
-from src.utils import chamfer_distance
+
+from read_config import Config
+from src.PointNet import PrimitivesEmbeddingDGCNGn
+from src.dataset import generator_iter
+from src.dataset_segments import Dataset
+from src.residual_utils import Evaluation
 from src.segment_loss import (
     EmbeddingLoss,
     primitive_loss,
 )
-import os
-from tensorboard_logger import configure, log_value
-from src.dataset import generator_iter
-from src.residual_utils import Evaluation
-import time
-import traceback
-import gc
 from src.utils import grad_norm
-
 
 np.set_printoptions(precision=3)
 config = Config(sys.argv[1])
@@ -64,7 +51,7 @@ logger.addHandler(file_handler)
 logger.addHandler(handler)
 
 with open(
-    "logs/configs/{}_config.json".format(model_name), "w"
+        "logs/configs/{}_config.json".format(model_name), "w"
 ) as file:
     json.dump(vars(config), file)
 source_file = __file__
@@ -75,7 +62,7 @@ copyfile(source_file, destination_file)
 if_normals = True
 if_normal_noise = True
 
-Loss = EmbeddingLoss( margin=1.0, if_mean_shift=False)
+Loss = EmbeddingLoss(margin=1.0, if_mean_shift=False)
 
 model = PrimitivesEmbeddingDGCNGn(
     embedding=True,
@@ -129,7 +116,6 @@ get_val_data = dataset.get_val(
     align_canonical=True, anisotropic=False, if_normal_noise=if_normal_noise
 )
 
-
 optimizer = optim.Adam(model.parameters(), lr=config.lr)
 optimizer.load_state_dict(torch.load("logs/pretrained_models/" +
                                      config.pretrain_model_path.split(".")[0] + "_optimizer.pth"))
@@ -162,7 +148,7 @@ get_val_data = iter(
 scheduler = ReduceLROnPlateau(
     optimizer, mode="min", factor=0.5, patience=10, verbose=True, min_lr=1e-4
 )
-        
+
 model_bkp.triplet_loss = Loss.triplet_loss
 prev_test_loss = 1e4
 print("started training!")
@@ -221,7 +207,7 @@ for e in range(config.epochs):
             primitives_ = primitives_[:, l]
             points = torch.from_numpy(points).cuda()
             normals = torch.from_numpy(normals).cuda()
-            
+
             # TO make sure that the network doesn't compute the gradient w.r.t
             # these points.
             points.requires_grad = False
@@ -236,7 +222,7 @@ for e in range(config.epochs):
                 embedding, primitives_log_prob, embed_loss = model(
                     points.permute(0, 2, 1), torch.from_numpy(labels).cuda(), True
                 )
-           
+
             embed_loss = torch.mean(embed_loss)
             p_loss = primitive_loss(primitives_log_prob, primitives)
             torch.cuda.empty_cache()
@@ -255,16 +241,18 @@ for e in range(config.epochs):
                 )
                 res_loss[0] = res_loss[0].to(torch.device("cuda:0"))
             except Exception as weird_except:
-                import ipdb; ipdb.set_trace()
+                import ipdb;
+
+                ipdb.set_trace()
                 traceback.print_exc()
                 loss = embed_loss
                 loss.backward()
                 if grad_norm(model):
                     optimizer.zero_grad()
-                    print ("grad norm is nan or inf!")
+                    print("grad norm is nan or inf!")
                 torch.cuda.empty_cache()
-                print (weird_except)
-                print ("exception in training")
+                print(weird_except)
+                print("exception in training")
                 mistake = True
                 break
             s_iou, iou = res_loss[3:]
@@ -288,8 +276,10 @@ for e in range(config.epochs):
             try:
                 loss.backward()
             except:
-                import ipdb; ipdb.set_trace()
-            
+                import ipdb;
+
+                ipdb.set_trace()
+
         if mistake:
             continue
         # Avoid zero entries
@@ -346,8 +336,8 @@ for e in range(config.epochs):
             train_b_id + e * (config.num_train // config.batch_size // num_iter),
         )
         log_value("seg_iou",
-            seg_ious,
-            train_b_id + e * (config.num_train // config.batch_size // num_iter),)
+                  seg_ious,
+                  train_b_id + e * (config.num_train // config.batch_size // num_iter), )
     test_emb_losses = []
     test_prim_losses = []
     test_losses = []
@@ -375,7 +365,7 @@ for e in range(config.epochs):
         primitives = torch.from_numpy(primitives_.astype(np.int64)).cuda()
         normals = torch.from_numpy(normals).cuda()
         mistake = False
-        
+
         with torch.no_grad():
             if if_normals:
                 input = torch.cat([points, normals], 2)
@@ -405,13 +395,13 @@ for e in range(config.epochs):
                 traceback.print_exc()
                 loss = embed_loss
                 loss.backward()
-                print ("some exception in while testing")
+                print("some exception in while testing")
                 continue
-        
+
         s_iou, iou = res_loss[3:]
         res_loss = res_loss[0:3]
         res_loss[0] = res_loss[0].to(torch.device("cuda:0"))
-        
+
         test_res_losses.append(res_loss[0].item())
         if not (res_loss[1] is None):
             test_res_geom_losses.append(res_loss[1])
@@ -422,10 +412,10 @@ for e in range(config.epochs):
         p_loss = primitive_loss(primitives_log_prob, primitives)
         loss = embed_loss + p_loss
 
-        print ("test: ", val_b_id, time.time() - t1)
+        print("test: ", val_b_id, time.time() - t1)
         test_iou.append(iou)
         test_seg_iou.append(s_iou)
-        
+
         test_prim_losses.append(p_loss.data.cpu().numpy())
         test_emb_losses.append(embed_loss.data.cpu().numpy())
         test_losses.append(loss.data.cpu().numpy())
@@ -463,7 +453,7 @@ for e in range(config.epochs):
 
     log_value("train seg iou", np.mean(train_seg_iou), e)
     log_value("test seg iou", np.mean(test_seg_iou), e)
-    
+
     scheduler.step(np.mean(test_res_losses))
     if prev_test_loss > np.mean(test_res_losses):
         logger.info("improvement, saving model at epoch: {}".format(e))

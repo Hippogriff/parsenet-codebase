@@ -1,47 +1,27 @@
-import open3d
-
-import sys
-import logging
-import json
 import os
-from shutil import copyfile
+import sys
+
 import numpy as np
-import torch.optim as optim
-from src.curve_utils import fit_surface
-from src.utils import visualize_point_cloud
-from src.test_utils import test
-from src.loss import control_points_permute_reg_loss
+import open3d
 import torch.utils.data
+from open3d import *
 from torch.autograd import Variable
-from torch.optim.lr_scheduler import ReduceLROnPlateau
-from src.dataset import DataSetControlPointsPoisson
-from src.model import DGCNNControlPoints
-from matplotlib import pyplot as plt
-from src.utils import visualize_uv_maps, visualize_fitted_surface
-from src.utils import chamfer_distance
-from read_config import Config
-from src.utils import fit_surface_sample_points
-from src.dataset import generator_iter
 from torch.utils.data import DataLoader
-from src.utils import chamfer_distance
+
+from read_config import Config
+from src.VisUtils import tessalate_points
+from src.dataset import DataSetControlPointsPoisson
+from src.dataset import generator_iter
+from src.fitting_utils import sample_points_from_control_points_
+from src.fitting_utils import up_sample_points_torch_in_range
+from src.loss import control_points_permute_reg_loss
+from src.loss import laplacian_loss
 from src.loss import (
-    basis_function_one,
     uniform_knot_bspline,
     spline_reconstruction_loss,
 )
-from src.utils import chamfer_distance
-from src.VisUtils import tessalate_points
-import open3d
-from open3d import *
-import json
-from src.loss import laplacian_loss
-from src.utils import draw_geometries
-from src.fitting_utils import up_sample_points_torch_in_range
-from src.primitive_forward import optimize_open_spline, optimize_open_spline_kronecker
+from src.model import DGCNNControlPoints
 from src.primitive_forward import optimize_open_spline
-from src.VisUtils import grid_meshes_lists_visulation
-from src.fitting_utils import sample_points_from_control_points_
-
 
 config = Config(sys.argv[1])
 
@@ -65,7 +45,7 @@ nv = torch.from_numpy(nv.astype(np.float32)).cuda()
 nu_3, nv_3 = uniform_knot_bspline(30, 30, 3, 3, 50)
 nu_3 = torch.from_numpy(nu_3.astype(np.float32)).cuda()
 nv_3 = torch.from_numpy(nv_3.astype(np.float32)).cuda()
-    
+
 align_canonical = True
 anisotropic = True
 if_augment = False
@@ -73,7 +53,6 @@ if_rand_points = False
 if_optimize = False
 if_save_meshes = True
 if_upsample = False
-
 
 get_test_data = dataset.load_test_data(
     if_regular_points=True, align_canonical=align_canonical, anisotropic=anisotropic,
@@ -123,7 +102,7 @@ for val_b_id in range(config.num_test // config.batch_size - 2):
         L = np.arange(points.shape[2])
         np.random.shuffle(L)
         new_points = points[:, :, L[0:num_points]]
-        
+
         if if_upsample:
             new_points = up_sample_points_torch_in_range(new_points[0].permute(1, 0), 800, 1200).permute(1, 0)
             new_points = torch.unsqueeze(new_points, 0)
@@ -136,7 +115,7 @@ for val_b_id in range(config.num_test // config.batch_size - 2):
             output[b] = output[b] * s.reshape(1, 3) / torch.max(s)
             points[b] = points[b] * s.reshape(3, 1) / torch.max(s)
             control_points[b] = (
-                control_points[b] * s.reshape(1, 1, 3) / torch.max(s)
+                    control_points[b] * s.reshape(1, 1, 3) / torch.max(s)
             )
 
     # Chamfer Distance loss, between predicted and GT surfaces
@@ -147,9 +126,9 @@ for val_b_id in range(config.num_test // config.batch_size - 2):
     if if_optimize:
         new_points = optimize_open_spline(reconstructed_points, points.permute(0, 2, 1))
 
-        cd,  optimized_points = spline_reconstruction_loss(nu_3, nv_3, new_points, points, config, sqrt=True)
+        cd, optimized_points = spline_reconstruction_loss(nu_3, nv_3, new_points, points, config, sqrt=True)
         optimized_points = optimized_points.data.cpu().numpy()
-        
+
     l_reg, permute_cp = control_points_permute_reg_loss(
         output, control_points, config.grid_size
     )
@@ -163,7 +142,7 @@ for val_b_id in range(config.num_test // config.batch_size - 2):
     test_reg.append(l_reg.data.cpu().numpy())
     test_cd.append(cd.data.cpu().numpy())
     test_lap.append(laplac_loss.data.cpu().numpy())
-    print (val_b_id)
+    print(val_b_id)
     if if_save_meshes:
         reconstructed_points = reconstructed_points.data.cpu().numpy()
         reg_points = sample_points_from_control_points_(nu, nv, control_points, config.batch_size,
@@ -178,7 +157,7 @@ for val_b_id in range(config.num_test // config.batch_size - 2):
 
                 new_points = np.linalg.inv(RS[b]) @ reg_points[b].T
                 reg_points[b] = new_points.T
-                
+
                 if if_optimize:
                     new_points = np.linalg.inv(RS[b]) @ optimized_points[b].T
                     optimized_points[b] = new_points.T
@@ -207,14 +186,14 @@ for val_b_id in range(config.num_test // config.batch_size - 2):
                     "logs/results/{}/optim_{}.ply".format(
                         config.pretrain_model_path, val_b_id
                     ),
-                optim_mesh,
+                    optim_mesh,
                 )
 
 results = {}
 results["test_reg"] = str(np.mean(test_reg))
 results["test_cd"] = str(np.mean(test_cd))
 results["test_lap"] = str(np.mean(test_lap))
-print (results)
+print(results)
 print(
     "Test Reg Loss: {}, Test CD Loss: {},  Test Lap: {}".format(
         np.mean(test_reg), np.mean(test_cd), np.mean(test_lap)

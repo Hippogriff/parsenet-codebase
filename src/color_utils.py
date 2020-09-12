@@ -1,6 +1,8 @@
 import os
 import random
+
 import numpy as np
+
 
 # initialize the weighs of the network for Convolutional layers and batchnorm layers
 def weights_init(m):
@@ -49,7 +51,7 @@ def my_get_n_random_lines(path, n=5):
         file.seek(random.randint(400, lenght - MY_CHUNK_SIZE))
         chunk = file.read(MY_CHUNK_SIZE)
         lines = chunk.split(os.linesep)
-        return lines[1 : n + 1]
+        return lines[1: n + 1]
 
 
 def get_random_color(pastel_factor=0.5):
@@ -104,7 +106,7 @@ def image_transform(img, crop_x, crop_y, crop_loc=None, color_tint=None):
         height, width, _ = img.shape
         img_h = height - crop_y
         img_w = width - crop_x
-        img = img[cr : cr + img_h, cc : cc + img_w]
+        img = img[cr: cr + img_h, cc: cc + img_w]
         # depth = depth[cr:cr+img_h, cc:cc+img_w]
 
     if np.random.rand() > 0.5:
@@ -159,7 +161,6 @@ def preprocess_img(im, train=True):
 
 
 if __name__ == "__main__":
-
     # To make your color choice reproducible, uncomment the following line:
     # random.seed(10)
 

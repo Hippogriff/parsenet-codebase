@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def compute_stats(data, max_surfaces, max_control_points):
     # see if the number of surfaces are less than the threshold
     if len(data) > max_surfaces:
@@ -12,7 +13,7 @@ def compute_stats(data, max_surfaces, max_control_points):
     if "BSpline" in types:
         contain_spline = True
     else:
-        return[0, None]
+        return [0, None]
 
     # remove extra meta data
     for d in data:

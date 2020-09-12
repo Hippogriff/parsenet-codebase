@@ -1,14 +1,9 @@
 import numpy as np
-from torch.autograd import Variable
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.nn.parallel
 import torch.utils.data
-import os
-import sys
-import copy
-import math
 
 
 def knn(x, k1, k2):
@@ -17,8 +12,8 @@ def knn(x, k1, k2):
     with torch.no_grad():
         distances = []
         for b in range(batch_size):
-            inner = -2*torch.matmul(x[b:b+1].transpose(2, 1), x[b:b+1])
-            xx = torch.sum(x[b:b+1]**2, dim=1, keepdim=True)
+            inner = -2 * torch.matmul(x[b:b + 1].transpose(2, 1), x[b:b + 1])
+            xx = torch.sum(x[b:b + 1] ** 2, dim=1, keepdim=True)
             pairwise_distance = -xx - inner - xx.transpose(2, 1)
             distances.append(pairwise_distance)
         distances = torch.stack(distances, 0)
@@ -26,7 +21,8 @@ def knn(x, k1, k2):
         try:
             idx = distances.topk(k=k2, dim=-1)[1][:, :, indices]
         except:
-            import ipdb; ipdb.set_trace()
+            import ipdb;
+            ipdb.set_trace()
     return idx
 
 
@@ -42,11 +38,11 @@ def knn_points_normals(x, k1, k2):
     with torch.no_grad():
         distances = []
         for b in range(batch_size):
-            p = x[b: b+1, 0:3]
-            n = x[b: b+1, 3:6]
+            p = x[b: b + 1, 0:3]
+            n = x[b: b + 1, 3:6]
 
             inner = 2 * torch.matmul(p.transpose(2, 1), p)
-            xx = torch.sum(p**2, dim=1, keepdim=True)
+            xx = torch.sum(p ** 2, dim=1, keepdim=True)
             p_pairwise_distance = xx - inner + xx.transpose(2, 1)
 
             inner = 2 * torch.matmul(n.transpose(2, 1), n)
@@ -68,7 +64,8 @@ def knn_points_normals(x, k1, k2):
         try:
             idx = distances.topk(k=k2, dim=-1)[1][:, :, indices]
         except:
-            import ipdb; ipdb.set_trace()
+            import ipdb;
+            ipdb.set_trace()
     return idx
 
 
@@ -82,26 +79,27 @@ def get_graph_feature(x, k1=20, k2=20, idx=None):
 
     device = torch.device('cuda')
 
-    idx_base = torch.arange(0, batch_size, device=device).view(-1, 1, 1)*num_points
+    idx_base = torch.arange(0, batch_size, device=device).view(-1, 1, 1) * num_points
 
     idx = idx + idx_base
 
     idx = idx.view(-1)
- 
+
     _, num_dims, _ = x.size()
 
     x = x.transpose(2, 1).contiguous()
-    
+
     try:
-        feature = x.view(batch_size*num_points, -1)[idx, :]
+        feature = x.view(batch_size * num_points, -1)[idx, :]
     except:
-        import ipdb; ipdb.set_trace()
+        import ipdb;
+        ipdb.set_trace()
         print(feature.shape)
-    
+
     feature = feature.view(batch_size, num_points, k1, num_dims)
     x = x.view(batch_size, num_points, 1, num_dims).repeat(1, 1, k1, 1)
-    
-    feature = torch.cat((feature-x, x), dim=3).permute(0, 3, 1, 2)
+
+    feature = torch.cat((feature - x, x), dim=3).permute(0, 3, 1, 2)
     return feature
 
 
@@ -118,26 +116,27 @@ def get_graph_feature_with_normals(x, k1=20, k2=20, idx=None):
 
     device = torch.device('cuda')
 
-    idx_base = torch.arange(0, batch_size, device=device).view(-1, 1, 1)*num_points
+    idx_base = torch.arange(0, batch_size, device=device).view(-1, 1, 1) * num_points
 
     idx = idx + idx_base
 
     idx = idx.view(-1)
- 
+
     _, num_dims, _ = x.size()
 
     x = x.transpose(2, 1).contiguous()
-    
+
     try:
-        feature = x.view(batch_size*num_points, -1)[idx, :]
+        feature = x.view(batch_size * num_points, -1)[idx, :]
     except:
-        import ipdb; ipdb.set_trace()
+        import ipdb;
+        ipdb.set_trace()
         print(feature.shape)
-    
+
     feature = feature.view(batch_size, num_points, k1, num_dims)
     x = x.view(batch_size, num_points, 1, num_dims).repeat(1, 1, k1, 1)
-    
-    feature = torch.cat((feature-x, x), dim=3).permute(0, 3, 1, 2)
+
+    feature = torch.cat((feature - x, x), dim=3).permute(0, 3, 1, 2)
     return feature
 
 
@@ -158,10 +157,10 @@ class DGCNNEncoderGn(nn.Module):
             self.conv1 = nn.Sequential(nn.Conv2d(input_channels * 2, 64, kernel_size=1, bias=False),
                                        self.bn1,
                                        nn.LeakyReLU(negative_slope=0.2))
-            self.conv2 = nn.Sequential(nn.Conv2d(64*2, 64, kernel_size=1, bias=False),
+            self.conv2 = nn.Sequential(nn.Conv2d(64 * 2, 64, kernel_size=1, bias=False),
                                        self.bn2,
                                        nn.LeakyReLU(negative_slope=0.2))
-            self.conv3 = nn.Sequential(nn.Conv2d(64*2, 128, kernel_size=1, bias=False),
+            self.conv3 = nn.Sequential(nn.Conv2d(64 * 2, 128, kernel_size=1, bias=False),
                                        self.bn3,
                                        nn.LeakyReLU(negative_slope=0.2))
 
@@ -177,7 +176,7 @@ class DGCNNEncoderGn(nn.Module):
         if self.mode == 0 or self.mode == 1:
             # First edge conv
             x = get_graph_feature(x, k1=self.k, k2=self.k)
-            
+
             x = self.conv1(x)
             x1 = x.max(dim=-1, keepdim=False)[0]
 
@@ -227,7 +226,9 @@ class PrimitivesEmbeddingDGCNGn(nn.Module):
     point embedding or membership function. This defines the membership loss
     inside the forward function so that data distributed loss can be made faster.
     """
-    def __init__(self, emb_size=50, num_primitives=8, primitives=False, embedding=False, mode=0, num_channels=3, loss_function=None, nn_nb=80):
+
+    def __init__(self, emb_size=50, num_primitives=8, primitives=False, embedding=False, mode=0, num_channels=3,
+                 loss_function=None, nn_nb=80):
         super(PrimitivesEmbeddingDGCNGn, self).__init__()
         self.mode = mode
         self.encoder = DGCNNEncoderGn(mode=mode, input_channels=num_channels, nn_nb=nn_nb)
@@ -241,7 +242,7 @@ class PrimitivesEmbeddingDGCNGn(nn.Module):
 
         self.bn1 = nn.GroupNorm(8, 512)
         self.conv2 = torch.nn.Conv1d(512, 256, 1)
-        
+
         self.bn2 = nn.GroupNorm(4, 256)
 
         self.softmax = torch.nn.Softmax(dim=1)
@@ -250,7 +251,7 @@ class PrimitivesEmbeddingDGCNGn(nn.Module):
         self.emb_size = emb_size
         self.primitives = primitives
         self.embedding = embedding
-        
+
         if self.embedding:
             self.mlp_seg_prob1 = torch.nn.Conv1d(256, 256, 1)
             self.mlp_seg_prob2 = torch.nn.Conv1d(256, self.emb_size, 1)
@@ -294,7 +295,9 @@ class PrimitivesEmbeddingDGCNGne2e(nn.Module):
     point embedding or membership function. This defines the membership loss
     inside the forward function so that data distributed loss can be made faster.
     """
-    def __init__(self, emb_size=50, num_primitives=8, primitives=False, embedding=False, mode=0, num_channels=3, loss_function=None, nn_nb=80):
+
+    def __init__(self, emb_size=50, num_primitives=8, primitives=False, embedding=False, mode=0, num_channels=3,
+                 loss_function=None, nn_nb=80):
         super(PrimitivesEmbeddingDGCNGne2e, self).__init__()
         self.mode = mode
         self.encoder = DGCNNEncoderGn(mode=mode, input_channels=num_channels, nn_nb=nn_nb)
@@ -308,7 +311,7 @@ class PrimitivesEmbeddingDGCNGne2e(nn.Module):
 
         self.bn1 = nn.GroupNorm(8, 512)
         self.conv2 = torch.nn.Conv1d(512, 256, 1)
-        
+
         self.bn2 = nn.GroupNorm(4, 256)
 
         self.softmax = torch.nn.Softmax(dim=1)
@@ -317,7 +320,7 @@ class PrimitivesEmbeddingDGCNGne2e(nn.Module):
         self.emb_size = emb_size
         self.primitives = primitives
         self.embedding = embedding
-        
+
         if self.embedding:
             self.mlp_seg_prob1 = torch.nn.Conv1d(256, 256, 1)
             self.mlp_seg_prob2 = torch.nn.Conv1d(256, self.emb_size, 1)
@@ -332,7 +335,7 @@ class PrimitivesEmbeddingDGCNGne2e(nn.Module):
         batch_size = points.shape[0]
         num_points = points.shape[2]
         normals = points[:, 3:, :].permute(0, 2, 1)
-        
+
         x, first_layer_features = self.encoder(points)
 
         # first_layer_features = first_layer_features[:, :, self.l_permute]

@@ -1,8 +1,6 @@
 import numpy as np
-from src.utils import visualize_point_cloud_from_labels
-from src.utils import draw_geometries
-from lapsolver import solve_dense
 import torch
+
 from src.segment_utils import SIOU_matched_segments
 from src.segment_utils import to_one_hot
 
@@ -28,12 +26,12 @@ def iou_segmentation(pred, gt):
     gt[gt == 6] = 9
     gt[gt == 7] = 9
     gt[gt == 8] = 2
-    
+
     pred[pred == 0] = 9
     pred[pred == 6] = 9
     pred[pred == 7] = 9
     pred[pred == 8] = 2
-    
+
     return mean_IOU_one_sample(pred, gt, 6)
 
 
@@ -41,7 +39,7 @@ def to_one_hot(target, maxx=50):
     target = torch.from_numpy(target.astype(np.int64)).cuda()
     N = target.shape[0]
     target_one_hot = torch.zeros((N, maxx))
-    
+
     target_one_hot = target_one_hot.cuda()
     target_t = target.unsqueeze(1)
     target_one_hot = target_one_hot.scatter_(1, target_t.long(), 1)
@@ -60,11 +58,12 @@ def matching_iou(matching, predicted_labels, labels):
         for r, c in zip(rows, cols):
             pred_indices = predicted_labels[b] == r
             gt_indices = labels[b] == c
-            
+
             # if both input and predictions are empty, ignore that.
-            if (np.sum(gt_indices) == 0) and  (np.sum(pred_indices) == 0):
+            if (np.sum(gt_indices) == 0) and (np.sum(pred_indices) == 0):
                 continue
-            iou = np.sum(np.logical_and(pred_indices, gt_indices)) / (np.sum(np.logical_or(pred_indices, gt_indices)) + 1e-8)
+            iou = np.sum(np.logical_and(pred_indices, gt_indices)) / (
+                        np.sum(np.logical_or(pred_indices, gt_indices)) + 1e-8)
             iou_b.append(iou)
 
         # find the mean of IOU over this shape
@@ -93,7 +92,8 @@ def relaxed_iou(pred, gt, max_clusters=50):
                 r_iou = dots[k1, k2]
                 r_iou = r_iou / (norms_p[b, k1] + norms_g[b, k2] - dots[k1, k2] + 1e-10)
                 if r_iou < 0:
-                    import ipdb; ipdb.set_trace()
+                    import ipdb;
+                    ipdb.set_trace()
                 c.append(r_iou)
             c_batch.append(c)
         cost.append(c_batch)
@@ -113,14 +113,14 @@ def p_coverage(points, parameters, ResidualLoss):
     points = torch.from_numpy(points).cuda()
     gpoints = {k: points for k in parameters.keys()}
     reduce_distance = residual_reduce.residual_loss(gpoints,
-                                             parameters,
-                                             sqrt=True)
+                                                    parameters,
+                                                    sqrt=True)
 
     reduce_distance = [v[1] for k, v in reduce_distance.items()]
     reduce_distance = torch.stack([r for r in reduce_distance], 0)
-    print (reduce_distance.shape)
+    print(reduce_distance.shape)
     reduce_distance = torch.min(reduce_distance, 0)[0]
-    
+
     cover = reduce_distance < 0.01
     cover = torch.mean(cover.float())
     mean_coverage = torch.mean(reduce_distance)
@@ -174,22 +174,23 @@ def separate_losses(distance, gt_points, lamb=1.0):
         spline_loss = None
     return [Loss, geometric_loss, spline_loss]
 
+
 def IOU(data):
     """
     Take the per shape output predictions, and produces segment IOU, and
     primitive type IOU.
     """
-    Mapping ={"torus": 0,
-        "plane": 1,
-         "cone": 3,
-         "cylinder": 4,
-         "sphere": 5,
-         "open-spline": 2,
-         "closed-spline": 9}
+    Mapping = {"torus": 0,
+               "plane": 1,
+               "cone": 3,
+               "cylinder": 4,
+               "sphere": 5,
+               "open-spline": 2,
+               "closed-spline": 9}
 
     parameters = data["primitive_dict"]
     # setting the not assigned 
-    
+
     primitives = data["primitives"]
 
     label_to_primitive = {}
@@ -211,15 +212,15 @@ def IOU(data):
 
     if (data.get("weights") is None):
         weights = to_one_hot(data["seg_id"],
-                   np.unique(data["seg_id"]).shape[0]).data.cpu().numpy()
+                             np.unique(data["seg_id"]).shape[0]).data.cpu().numpy()
     else:
         weights = data["weights"]
 
     s_iou, p_iou, _, iou_b_prims = SIOU_matched_segments(data["labels"],
-                                            data["seg_id"],
-                                            pred_primitives,
-                                            data["primitives"],
-                                            weights)
+                                                         data["seg_id"],
+                                                         pred_primitives,
+                                                         data["primitives"],
+                                                         weights)
     return s_iou, p_iou, iou_b_prims
 
 
@@ -228,13 +229,13 @@ def IOU_simple(data):
     Take the per shape output predictions, and produces segment IOU, and
     primitive type IOU.
     """
-    Mapping ={"torus": 0,
-        "plane": 1,
-         "cone": 3,
-         "cylinder": 4,
-         "sphere": 5,
-         "open-spline": 2,
-         "closed-spline": 9}
+    Mapping = {"torus": 0,
+               "plane": 1,
+               "cone": 3,
+               "cylinder": 4,
+               "sphere": 5,
+               "open-spline": 2,
+               "closed-spline": 9}
 
     parameters = data["primitive_dict"]
     # setting the not assigned 
@@ -249,10 +250,10 @@ def IOU_simple(data):
 
     if (data.get("weights") is None):
         weights = to_one_hot(data["seg_id"],
-                   np.unique(data["seg_id"]).shape[0]).data.cpu().numpy()
+                             np.unique(data["seg_id"]).shape[0]).data.cpu().numpy()
     else:
         weights = data["weights"]
-    
+
     s_iou, p_iou, _ = SIOU_matched_segments(data["labels"],
                                             data["seg_id"],
                                             pred_primitives,
@@ -264,7 +265,7 @@ def IOU_simple(data):
 def preprocess(data, rem_unassign=False):
     N = data["seg_id"].shape[0]
     keep_indices = np.logical_not(data["seg_id"] == 100)
-    print ("unassigned no. points ", N - np.sum(keep_indices))
+    print("unassigned no. points ", N - np.sum(keep_indices))
     if rem_unassign:
         # assign nearest labels
         data = remove_unassigned(data)
@@ -277,6 +278,7 @@ def preprocess(data, rem_unassign=False):
         data["labels"] = data["labels"][keep_indices]
     return data
 
+
 def remove_unassigned(data):
     """
     For un assigned points, assign the nearest neighbors label.
@@ -284,10 +286,10 @@ def remove_unassigned(data):
     points = torch.from_numpy(data['points'].astype(np.float32)).cuda()
     dst_matrix = torch.sum((torch.unsqueeze(points, 1) - torch.unsqueeze(points, 0)) ** 2, 2)
     unassigned_index = data['seg_id'] == 100
-    
+
     dst_matrix = dst_matrix.fill_diagonal_(2e8)
     dst_matrix[:, unassigned_index] = 2e8
     nearest_index = torch.min(dst_matrix, 1)[1].data.cpu().numpy()
-    
+
     data['seg_id'][unassigned_index] = data['seg_id'][nearest_index[unassigned_index]]
     return data

@@ -2,8 +2,8 @@
 This file contains utility functions to segment the embedding using clustering algorithms.
 """
 import numpy as np
+
 random_state = 170
-import time
 from sklearn.cluster import SpectralClustering, KMeans, MeanShift, estimate_bandwidth
 import torch
 from lapsolver import solve_dense
@@ -14,10 +14,10 @@ def cluster(X, number_cluster, bandwidth=None, alg="kmeans"):
     X = X.astype(np.float32)
     if alg == "kmeans":
         y_pred = KMeans(n_clusters=number_cluster, random_state=random_state).fit_predict(X)
-    
+
     elif alg == "spectral":
         y_pred = SpectralClustering(n_clusters=number_cluster, random_state=random_state, n_jobs=10).fit_predict(X)
-    
+
     elif alg == "meanshift":
         # There is a little insight here, the number of neighbors are somewhat
         # dependent on the number of neighbors used in the dynamic graph network.
@@ -35,6 +35,7 @@ def cluster(X, number_cluster, bandwidth=None, alg="kmeans"):
     else:
         return y_pred
 
+
 def cluster_prob(embedding, centers):
     """
     Returns cluster probabilities.
@@ -46,7 +47,7 @@ def cluster_prob(embedding, centers):
 
     prob = np.exp(dot_p) / np.expand_dims(np.sum(np.exp(dot_p), 1), 1)
     return prob
-    
+
 
 def cluster_prob(embedding, centers, band_width):
     """
@@ -54,7 +55,7 @@ def cluster_prob(embedding, centers, band_width):
     :param embedding: N x 128, embedding for each point
     :param centers: C x 128, embedding for centers
     """
-    dist = 2 - 2 * centers @ embedding.T 
+    dist = 2 - 2 * centers @ embedding.T
     prob = np.exp(-dist / 2 / (band_width)) / np.sqrt(2 * np.pi * band_width)
     return prob
 
@@ -68,7 +69,7 @@ def cluster_prob_mutual(embedding, centers, bandwidth, if_normalize=False):
     # dim: C x N
     dist = np.exp(centers @ embedding.T / bandwidth)
     prob = dist / np.sum(dist, 0, keepdims=True)
-    
+
     if if_normalize:
         prob = prob - np.min(prob, 1, keepdims=True)
         prob = prob / np.max(prob, 1, keepdims=True)
@@ -142,7 +143,7 @@ def SIOU_matched_segments(target, pred_labels, primitives_pred, primitives, weig
     primitives[primitives == 6] = 9
     primitives[primitives == 7] = 9
     primitives[primitives == 8] = 2
-    
+
     primitives_pred[primitives_pred == 0] = 9
     primitives_pred[primitives_pred == 6] = 9
     primitives_pred[primitives_pred == 7] = 9
@@ -167,8 +168,9 @@ def SIOU_matched_segments(target, pred_labels, primitives_pred, primitives, weig
     pred_labels = np.expand_dims(pred_labels, 0)
     prim_pred = np.expand_dims(prim_pred, 0)
     primitives = np.expand_dims(primitives, 0)
-    
-    segment_iou, primitive_iou, iou_b_prims = mean_IOU_primitive_segment(matching, pred_labels, target, prim_pred, primitives)
+
+    segment_iou, primitive_iou, iou_b_prims = mean_IOU_primitive_segment(matching, pred_labels, target, prim_pred,
+                                                                         primitives)
     return segment_iou, primitive_iou, matching, iou_b_prims
 
 
@@ -186,11 +188,11 @@ def mean_IOU_primitive_segment(matching, predicted_labels, labels, pred_prim, gt
     batch_size = labels.shape[0]
     IOU = []
     IOU_prim = []
-   
+
     for b in range(batch_size):
         iou_b = []
         iou_b_prim = []
-        iou_b_prims = []        
+        iou_b_prims = []
         len_labels = np.unique(predicted_labels[b]).shape[0]
         rows, cols = matching[b]
         count = 0
@@ -201,12 +203,13 @@ def mean_IOU_primitive_segment(matching, predicted_labels, labels, pred_prim, gt
             # use only matched segments for evaluation
             if (np.sum(gt_indices) == 0) or (np.sum(pred_indices) == 0):
                 continue
-            
+
             # also remove the gt labels that are very small in number
             if np.sum(gt_indices) < 100:
                 continue
-            
-            iou = np.sum(np.logical_and(pred_indices, gt_indices)) / (np.sum(np.logical_or(pred_indices, gt_indices)) + 1e-8)
+
+            iou = np.sum(np.logical_and(pred_indices, gt_indices)) / (
+                        np.sum(np.logical_or(pred_indices, gt_indices)) + 1e-8)
             iou_b.append(iou)
 
             # evaluation of primitive type prediction performance
@@ -214,7 +217,8 @@ def mean_IOU_primitive_segment(matching, predicted_labels, labels, pred_prim, gt
             try:
                 predicted_prim_type_k = pred_prim[b][r]
             except:
-                import ipdb; ipdb.set_trace()
+                import ipdb;
+                ipdb.set_trace()
 
             iou_b_prim.append(gt_prim_type_k == predicted_prim_type_k)
             iou_b_prims.append([gt_prim_type_k, predicted_prim_type_k])
@@ -246,6 +250,7 @@ def primitive_type_segment_torch(pred, weights):
     d = torch.sum(d, 0)
     return torch.max(d, 0)[1]
 
+
 def iou_segmentation(pred, gt):
     # preprocess the predictions and gt to remove the extras
     # swap (0, 6, 7) to closed surfaces which is 9
@@ -254,7 +259,7 @@ def iou_segmentation(pred, gt):
     gt[gt == 6] = 9
     gt[gt == 7] = 9
     gt[gt == 8] = 2
-    
+
     pred[pred == 0] = 9
     pred[pred == 6] = 9
     pred[pred == 7] = 9
@@ -267,7 +272,7 @@ def to_one_hot(target, maxx=50, device_id=0):
         target = torch.from_numpy(target.astype(np.int64)).cuda(device_id)
     N = target.shape[0]
     target_one_hot = torch.zeros((N, maxx))
-    
+
     target_one_hot = target_one_hot.cuda(device_id)
     target_t = target.unsqueeze(1)
     target_one_hot = target_one_hot.scatter_(1, target_t.long(), 1)
@@ -293,11 +298,12 @@ def matching_iou(matching, predicted_labels, labels):
         for r, c in zip(rows, cols):
             pred_indices = predicted_labels[b] == r
             gt_indices = labels[b] == c
-            
+
             # if both input and predictions are empty, ignore that.
-            if (np.sum(gt_indices) == 0) and  (np.sum(pred_indices) == 0):
+            if (np.sum(gt_indices) == 0) and (np.sum(pred_indices) == 0):
                 continue
-            iou = np.sum(np.logical_and(pred_indices, gt_indices)) / (np.sum(np.logical_or(pred_indices, gt_indices)) + 1e-8)
+            iou = np.sum(np.logical_and(pred_indices, gt_indices)) / (
+                        np.sum(np.logical_or(pred_indices, gt_indices)) + 1e-8)
             iou_b.append(iou)
 
         # find the mean of IOU over this shape
@@ -326,7 +332,8 @@ def relaxed_iou(pred, gt, max_clusters=50):
                 r_iou = dots[k1, k2]
                 r_iou = r_iou / (norms_p[b, k1] + norms_g[b, k2] - dots[k1, k2] + 1e-7)
                 if (r_iou < 0) or (r_iou > 1):
-                    import ipdb; ipdb.set_trace()
+                    import ipdb;
+                    ipdb.set_trace()
                 c.append(r_iou)
             c_batch.append(c)
         cost.append(c_batch)

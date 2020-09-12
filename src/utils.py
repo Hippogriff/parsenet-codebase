@@ -1,23 +1,25 @@
-import numpy as np
-from open3d import *
-from matplotlib import pyplot as plt
-from src.curve_utils import fit_surface
-import lap
-from torch.autograd.variable import Variable
-import torch
 import os
+
+import lap
+import numpy as np
 import open3d
 import open3d as o3d
-from src.guard import guard_exp, guard_sqrt
+import torch
+from matplotlib import pyplot as plt
+from open3d import *
+from torch.autograd.variable import Variable
+
+from src.curve_utils import fit_surface
+from src.guard import guard_sqrt
 
 Vector3dVector, Vector3iVector = utility.Vector3dVector, utility.Vector3iVector
 draw_geometries = o3d.visualization.draw_geometries
 
 
 def get_rotation_matrix(theta):
-    R=np.array([[ np.cos(theta),  np.sin(theta),  0],
-      [-np.sin(theta),  np.cos(theta),  0],
-      [ 0,        0  ,  1]])
+    R = np.array([[np.cos(theta), np.sin(theta), 0],
+                  [-np.sin(theta), np.cos(theta), 0],
+                  [0, 0, 1]])
     return R
 
 
@@ -37,8 +39,8 @@ def rotation_matrix_a_to_b(A, B):
     w = w / (np.linalg.norm(w) + EPS)
     F = np.stack([u, v, w], 1)
     G = np.array([[cos, -sin, 0],
-              [sin, cos, 0],
-              [0, 0, 1]])
+                  [sin, cos, 0],
+                  [0, 0, 1]])
     # B = R @ A
     try:
         R = F @ G @ np.linalg.inv(F)
@@ -79,8 +81,9 @@ def visualize_point_cloud_from_labels(points, labels, COLORS=None, normals=None,
     pcd = visualize_point_cloud(points, colors=colors, normals=normals, viz=viz)
     return pcd
 
+
 def sample_mesh_torch(
-    v1, v2, v3, n, face_normals=[], rgb1=[], rgb2=[], rgb3=[], norms=False, rgb=False
+        v1, v2, v3, n, face_normals=[], rgb1=[], rgb2=[], rgb3=[], norms=False, rgb=False
 ):
     """
     Samples mesh given its vertices
@@ -97,7 +100,7 @@ def sample_mesh_torch(
     probabilities = areas / torch.sum(areas)
     face_ids = np.random.choice(np.arange(len(areas)), size=n, p=probabilities.data.cpu.numpy())
     # import ipdb; ipdb.set_trace()
-    
+
     v1 = v1[face_ids]
     v2 = v2[face_ids]
     v3 = v3[face_ids]
@@ -113,12 +116,12 @@ def sample_mesh_torch(
     sample_points = sample_points.data.cpu().numpy()
 
     sample_point_normals = face_normals[face_ids].data.cpu().numpy()
-    
+
     return sample_points, sample_point_normals
 
-    
+
 def sample_mesh(
-    v1, v2, v3, n, face_normals=[], rgb1=[], rgb2=[], rgb3=[], norms=False, rgb=False
+        v1, v2, v3, n, face_normals=[], rgb1=[], rgb2=[], rgb3=[], norms=False, rgb=False
 ):
     """
     Samples mesh given its vertices
@@ -135,7 +138,7 @@ def sample_mesh(
     probabilities = areas / np.sum(areas)
 
     face_ids = np.random.choice(np.arange(len(areas)), size=n, p=probabilities)
-    
+
     v1 = v1[face_ids]
     v2 = v2[face_ids]
     v3 = v3[face_ids]
@@ -176,7 +179,7 @@ def triangle_area_multi(v1, v2, v3):
 
 
 def visualize_uv_maps(
-    output, root_path="data/uvmaps/", iter=0, grid_size=20, viz=False
+        output, root_path="data/uvmaps/", iter=0, grid_size=20, viz=False
 ):
     """
     visualizes uv map using the output of the network
@@ -192,7 +195,7 @@ def visualize_uv_maps(
         uvmap = output[index, :].reshape((grid_size, grid_size, 2))
         a[0].imshow(np.sum(uvmap, 2))
         uvmap = output[index, :].reshape((grid_size, grid_size, 2))
-        
+
         for ind in range(grid_size):
             a[1].plot(uvmap[ind, :, 1])
         for ind in range(grid_size):
@@ -287,7 +290,7 @@ def chamfer_distance(pred, gt, sqrt=False):
     diff = torch.sum(diff ** 2, 3)
     if sqrt:
         diff = guard_sqrt(diff)
-    
+
     cd = torch.mean(torch.min(diff, 1)[0], 1) + torch.mean(torch.min(diff, 2)[0], 1)
     cd = torch.mean(cd) / 2.0
     return cd
@@ -364,27 +367,28 @@ def rescale_input_outputs(scales, output, points, control_points, batch_size):
     scales = torch.from_numpy(scales).cuda()
     scales = scales.reshape((batch_size, 1, 3))
     output = (
-        output
-        * scales
-        / torch.max(scales.reshape((batch_size, 3)), 1)[0].reshape(
-            (batch_size, 1, 1)
-        )
+            output
+            * scales
+            / torch.max(scales.reshape((batch_size, 3)), 1)[0].reshape(
+        (batch_size, 1, 1)
+    )
     )
     points = (
-        points
-        * scales.reshape((batch_size, 3, 1))
-        / torch.max(scales.reshape((batch_size, 3)), 1)[0].reshape(
-            (batch_size, 1, 1)
-        )
+            points
+            * scales.reshape((batch_size, 3, 1))
+            / torch.max(scales.reshape((batch_size, 3)), 1)[0].reshape(
+        (batch_size, 1, 1)
+    )
     )
     control_points = (
-        control_points
-        * scales.reshape((batch_size, 1, 1, 3))
-        / torch.max(scales.reshape((batch_size, 3)), 1)[0].reshape(
-            (batch_size, 1, 1, 1)
-        )
+            control_points
+            * scales.reshape((batch_size, 1, 1, 3))
+            / torch.max(scales.reshape((batch_size, 3)), 1)[0].reshape(
+        (batch_size, 1, 1, 1)
+    )
     )
     return scales, output, points, control_points
+
 
 def grad_norm(model):
     total_norm = 0

@@ -1,7 +1,3 @@
-import os
-import sys
-import copy
-import math
 import numpy as np
 import torch
 import torch.nn as nn
@@ -16,8 +12,8 @@ def knn(x, k):
     with torch.no_grad():
         distances = []
         for b in range(batch_size):
-            inner = -2*torch.matmul(x[b:b+1].transpose(2, 1), x[b:b+1])
-            xx = torch.sum(x[b:b+1]**2, dim=1, keepdim=True)
+            inner = -2 * torch.matmul(x[b:b + 1].transpose(2, 1), x[b:b + 1])
+            xx = torch.sum(x[b:b + 1] ** 2, dim=1, keepdim=True)
             pairwise_distance = -xx - inner - xx.transpose(2, 1)
             distances.append(pairwise_distance)
         distances = torch.stack(distances, 0)
@@ -32,27 +28,28 @@ def get_graph_feature(x, k=20, idx=None):
     x = x.contiguous()
     x = x.view(batch_size, -1, num_points).contiguous()
     if idx is None:
-        idx = knn(x, k=k)   # (batch_size, num_points, k)
+        idx = knn(x, k=k)  # (batch_size, num_points, k)
     # device = torch.device('cuda')
 
-    idx_base = torch.arange(0, batch_size).view(-1, 1, 1)*num_points
+    idx_base = torch.arange(0, batch_size).view(-1, 1, 1) * num_points
     idx_base = idx_base.cuda(torch.get_device(x))
     idx = idx + idx_base
 
     idx = idx.view(-1)
- 
+
     _, num_dims, _ = x.size()
 
     x = x.transpose(2, 1).contiguous()
     try:
-        feature = x.view(batch_size*num_points, -1)[idx, :]
+        feature = x.view(batch_size * num_points, -1)[idx, :]
     except:
-        import ipdb; ipdb.set_trace()
-    feature = feature.view(batch_size, num_points, k, num_dims) 
+        import ipdb;
+        ipdb.set_trace()
+    feature = feature.view(batch_size, num_points, k, num_dims)
     x = x.view(batch_size, num_points, 1, num_dims).repeat(1, 1, k, 1)
-    
-    feature = torch.cat((feature-x, x), dim=3).permute(0, 3, 1, 2)
-  
+
+    feature = torch.cat((feature - x, x), dim=3).permute(0, 3, 1, 2)
+
     return feature
 
 
@@ -78,13 +75,13 @@ class DGCNNControlPoints(nn.Module):
             self.conv1 = nn.Sequential(nn.Conv2d(6, 64, kernel_size=1, bias=False),
                                        self.bn1,
                                        nn.LeakyReLU(negative_slope=0.2))
-            self.conv2 = nn.Sequential(nn.Conv2d(64*2, 64, kernel_size=1, bias=False),
+            self.conv2 = nn.Sequential(nn.Conv2d(64 * 2, 64, kernel_size=1, bias=False),
                                        self.bn2,
                                        nn.LeakyReLU(negative_slope=0.2))
-            self.conv3 = nn.Sequential(nn.Conv2d(64*2, 128, kernel_size=1, bias=False),
+            self.conv3 = nn.Sequential(nn.Conv2d(64 * 2, 128, kernel_size=1, bias=False),
                                        self.bn3,
                                        nn.LeakyReLU(negative_slope=0.2))
-            self.conv4 = nn.Sequential(nn.Conv2d(128*2, 256, kernel_size=1, bias=False),
+            self.conv4 = nn.Sequential(nn.Conv2d(128 * 2, 256, kernel_size=1, bias=False),
                                        self.bn4,
                                        nn.LeakyReLU(negative_slope=0.2))
             self.conv5 = nn.Sequential(nn.Conv1d(512, 1024, kernel_size=1, bias=False),
@@ -113,15 +110,15 @@ class DGCNNControlPoints(nn.Module):
                                        self.bn1,
                                        nn.LeakyReLU(negative_slope=0.2))
 
-            self.conv2 = nn.Sequential(nn.Conv2d(128*2, 256, kernel_size=1, bias=False),
+            self.conv2 = nn.Sequential(nn.Conv2d(128 * 2, 256, kernel_size=1, bias=False),
                                        self.bn2,
                                        nn.LeakyReLU(negative_slope=0.2))
 
-            self.conv3 = nn.Sequential(nn.Conv2d(256*2, 256, kernel_size=1, bias=False),
+            self.conv3 = nn.Sequential(nn.Conv2d(256 * 2, 256, kernel_size=1, bias=False),
                                        self.bn3,
                                        nn.LeakyReLU(negative_slope=0.2))
 
-            self.conv4 = nn.Sequential(nn.Conv2d(256*2, 512, kernel_size=1, bias=False),
+            self.conv4 = nn.Sequential(nn.Conv2d(256 * 2, 512, kernel_size=1, bias=False),
                                        self.bn4,
                                        nn.LeakyReLU(negative_slope=0.2))
 
@@ -140,7 +137,6 @@ class DGCNNControlPoints(nn.Module):
 
         self.tanh = nn.Tanh()
 
-        
     def forward(self, x, weights=None):
         """
         :param weights: weights of size B x N
@@ -171,7 +167,7 @@ class DGCNNControlPoints(nn.Module):
             x = x * weights
 
         x1 = F.adaptive_max_pool1d(x, 1).view(batch_size, -1)
- 
+
         x1 = torch.unsqueeze(x1, 2)
 
         x = F.dropout(F.relu(self.bn6(self.conv6(x1))), self.drop)
