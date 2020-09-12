@@ -75,22 +75,10 @@ python test_closed_control_points.py configs/config_test_closed_splines.yml
 python train_parsenet.py configs/config_parsenet.yml
 ```
 
-* To test ParseNet with only points as input:
-
-```
-python test_parsenet.py configs/config_test_parsenet.yml
-```
-
 * To train ParseNet with points and normals as input (with 4 gpus):
 
 ```
 python train_parsenet.py configs/config_parsenet_normals.yml
-```
-
-* To test ParseNet with points and normals as input:
-
-```
-python test_parsenet.py configs/config_test_parsenet_normals.yml
 ```
 
 * To train ParseNet in an end to end manner (note that you need to first pretrain the above models), then specify the path to the trained model in `configs/config_parsenet_e2e.yml` (with 2 gpus). Further note that, this part of the training requires dynamic amount of gpu memory because a shape can have variable number of segment and corresponding number of fitting module. Training is done using Nvidia m40 (24 Gb gpu). Testing can be done using `test_parsenet.py`.
