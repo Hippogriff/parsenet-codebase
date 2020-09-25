@@ -55,7 +55,7 @@ def save_point_cloud(filename, data):
 
 def visualize_point_cloud(points, normals=[], colors=[], file="", viz=False):
     # pcd = PointCloud()
-    pcd = open3d.open3d.geometry.PointCloud()
+    pcd = geometry.PointCloud()
     pcd.points = Vector3dVector(points)
 
     # estimate_normals(pcd, search_param = KDTreeSearchParamHybrid(
@@ -342,7 +342,7 @@ def chamfer_distance_single_shape(pred, gt, one_side=False, sqrt=False, reduce=T
     diff = torch.sum(diff ** 2, 2)
 
     if sqrt:
-        distance = guard_sqrt(diff)
+        diff = guard_sqrt(diff)
 
     if one_side:
         cd = torch.min(diff, 1)[0]

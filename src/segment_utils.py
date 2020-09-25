@@ -83,7 +83,15 @@ def dot_product_from_cluster_centers(embedding, centers):
 def sample_from_collection_of_mesh(Meshes, N=10000):
     A = []
     sampled_points = []
+    new_meshes = []
     for mesh in Meshes:
+        new_mesh = mesh.remove_unreferenced_vertices()
+        if np.array(new_mesh.vertices).shape[0] == 0:
+            continue
+        else:
+            new_meshes.append(new_mesh)
+
+    for mesh in new_meshes:
         mesh.remove_unreferenced_vertices()
         vertices = np.array(mesh.vertices)[np.array(mesh.triangles)]
         v1 = vertices[:, 0]
@@ -95,7 +103,9 @@ def sample_from_collection_of_mesh(Meshes, N=10000):
     area = np.sum(A)
     Points = []
 
-    for index, mesh in enumerate(Meshes):
+    for index, mesh in enumerate(new_meshes):
+        if np.array(mesh.vertices).shape[0] == 0:
+            continue
         mesh.remove_unreferenced_vertices()
         vertices = np.array(mesh.vertices)[np.array(mesh.triangles)]
         v1 = vertices[:, 0]
@@ -105,7 +115,10 @@ def sample_from_collection_of_mesh(Meshes, N=10000):
         if n > 10:
             # , face_normals=np.array(mesh.triangle_normals)
             points, normals, _ = sample_mesh(v1, v2, v3, n=n, norms=False)
-        Points.append(points)
+            try:
+                Points.append(points)
+            except:
+                pass
     Points = np.concatenate(Points, 0)
     return Points.astype(np.float32)
 

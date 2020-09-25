@@ -19,7 +19,8 @@ class Dataset:
                  test_size=None,
                  normals=False,
                  primitives=False,
-                 if_train_data=True):
+                 if_train_data=True,
+                 prefix=""):
         """
         Dataset of point cloud from ABC dataset.
         :param root_path:
@@ -34,7 +35,7 @@ class Dataset:
                                  random_scale_point_cloud, rotate_point_cloud]
 
         if if_train_data:
-            with h5py.File("data/shapes/train_data.h5", "r") as hf:
+            with h5py.File(prefix + "data/shapes/train_data.h5", "r") as hf:
                 train_points = np.array(hf.get("points"))
                 train_labels = np.array(hf.get("labels"))
                 if normals:
@@ -51,7 +52,7 @@ class Dataset:
             self.train_points = (train_points - means)
             self.train_labels = train_labels
 
-        with h5py.File("data/shapes/val_data.h5", "r") as hf:
+        with h5py.File(prefix + "data/shapes/val_data.h5", "r") as hf:
             val_points = np.array(hf.get("points"))
             val_labels = np.array(hf.get("labels"))
             if normals:
@@ -59,7 +60,7 @@ class Dataset:
             if primitives:
                 val_primitives = np.array(hf.get("prim"))
 
-        with h5py.File("data/shapes/test_data.h5", "r") as hf:
+        with h5py.File(prefix + "data/shapes/test_data.h5", "r") as hf:
             test_points = np.array(hf.get("points"))
             test_labels = np.array(hf.get("labels"))
             if normals:

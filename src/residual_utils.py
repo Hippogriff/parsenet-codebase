@@ -15,6 +15,8 @@ from src.fitting_utils import (
     match,
 )
 from open3d import *
+from src.fitting_utils import visualize_bit_mapping_shape
+
 
 Vector3dVector, Vector3iVector = utility.Vector3dVector, utility.Vector3iVector
 from src.mean_shift import MeanShift
@@ -127,7 +129,7 @@ class Evaluation:
                     lamb=lamb
                 )
             else:
-                loss, parameters, pred_mesh, gtpoints, distance, _, _ = self.residual_eval_mode(
+                loss, parameters, pred_mesh = self.residual_eval_mode(
                     points[b],
                     normals[b],
                     labels[b],
@@ -322,10 +324,11 @@ class Evaluation:
             else:
                 distance = None
             if sample_points:
-                pred_meshes = None
+                pred_meshes = visualize_bit_mapping_shape(
+                    data_, weights, recon_points, self.fitter.fitting.parameters, epsilon=epsilon)
             else:
                 pred_meshes = None
-        return Loss, self.fitter.fitting.parameters, pred_meshes, gt_points, distance, rows, cols
+        return Loss, self.fitter.fitting.parameters, pred_meshes
 
     def separate_losses(self, distance, gt_points, lamb=1.0):
         """

@@ -708,3 +708,113 @@ def remove_outliers(points, viz=False):
     if viz:
         display_inlier_outlier(voxel_down_pcd, ind)
     return np.array(cl.points)
+
+
+def visualize_bit_mapping_shape(data_, weights, recon_points, parameters=None, bit_map=True, epsilon=0.05):
+    # This steps basically gathers trimmed primitives and samples points and normals on trimmed surfaces.
+    # TODO: better way to do it is to not tesellate but directly find the
+    # grid point that are occupied.
+    pred_meshes = []
+
+    for index, g in enumerate(data_):
+        if (recon_points[index] is None):
+            # corresponds to degenrate cases
+            continue
+        if isinstance(recon_points[index], np.ndarray):
+            if recon_points[index].shape[0] == 0:
+                continue
+
+        points, _, l, _, _, i = g
+        if not isinstance(points, np.ndarray):
+            points = points.data.cpu().numpy()
+
+            part_points = points
+
+        if l in [11]:
+            # torus
+            part_points = up_sample_points_torch_memory_efficient(torch.from_numpy(points).cuda(), 2).data.cpu().numpy()
+
+            if bit_map:
+                if epsilon:
+                    e = epsilon
+                else:
+                    e = 0.03
+                pred_mesh = bit_mapping_points_torch(part_points, recon_points[index], e, 100, 60)
+
+        if l in [0, 9, 6, 7]:
+            # closed bspline surface
+            if not isinstance(recon_points[index], np.ndarray):
+                recon_points_ = recon_points[index].data.cpu().numpy()[0]
+            else:
+                recon_points_ = recon_points[index]
+            part_points = up_sample_points_torch_memory_efficient(torch.from_numpy(points).cuda(), 2).data.cpu().numpy()
+            try:
+                pred_mesh = tessalate_points_fast(recon_points_, 31, 30)
+            except:
+                import ipdb;
+                ipdb.set_trace()
+
+            if bit_map:
+                if epsilon:
+                    e = epsilon
+                else:
+                    e = 0.06
+                pred_mesh = bit_mapping_points_torch(part_points, recon_points_, e, 31, 30)
+
+        elif l in [2, 8]:
+            # open bspline surface
+            part_points = up_sample_points_torch_memory_efficient(torch.from_numpy(points).cuda(), 2).data.cpu().numpy()
+            if not isinstance(recon_points[index], np.ndarray):
+                recon_points_ = recon_points[index].data.cpu().numpy()[0]
+            else:
+                recon_points_ = recon_points[index]
+            pred_mesh = tessalate_points_fast(recon_points_, 30, 30)
+            if bit_map:
+                if epsilon:
+                    e = epsilon
+                else:
+                    e = 0.06
+                pred_mesh = bit_mapping_points_torch(part_points, recon_points_, e, 30, 30)
+
+        elif l == 1:
+            # Fit plane
+            part_points = up_sample_points_torch_memory_efficient(torch.from_numpy(points).cuda(), 3).data.cpu().numpy()
+            if epsilon:
+                e = epsilon
+            else:
+                e = 0.02
+            pred_mesh = bit_mapping_points_torch(part_points, recon_points[index], e, 120, 120)
+
+        elif l == 3:
+            # Cone
+            part_points = up_sample_points_torch_memory_efficient(torch.from_numpy(points).cuda(), 3).data.cpu().numpy()
+            if epsilon:
+                e = epsilon
+            else:
+                e = 0.03
+            try:
+                N = recon_points[index].shape[0] // 51
+                pred_mesh = bit_mapping_points_torch(part_points, recon_points[index], e, N, 51)
+            except:
+                import ipdb;
+                ipdb.set_trace()
+
+        elif l == 4:
+            # cylinder
+            part_points = up_sample_points_torch_memory_efficient(torch.from_numpy(points).cuda(), 3).data.cpu().numpy()
+
+            if epsilon:
+                e = epsilon
+            else:
+                e = 0.03
+            pred_mesh = bit_mapping_points_torch(part_points, recon_points[index], e, 200, 60)
+
+        elif l == 5:
+            part_points = up_sample_points_torch_memory_efficient(torch.from_numpy(points).cuda(), 2).data.cpu().numpy()
+            if epsilon:
+                e = epsilon
+            else:
+                e = 0.03
+            pred_mesh = bit_mapping_points_torch(part_points, recon_points[index], e, 100, 100)
+        pred_meshes.append(pred_mesh)
+    return pred_meshes
